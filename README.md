@@ -1,36 +1,16 @@
-SNOVA
-=======
-This repository contains the latest official Reference, Optimized, and AVX2 implementations in C of the SNOVA signature scheme.
+# SNOVA
 
-The `src` directory contains the updated version of SNOVA. The `dist` directory contains a makefile that will create subdirectories containing all the recommended SNOVA instances.
+This repository contains the latest official C implementations of the SNOVA signature scheme, including the Reference, Optimized, and AVX2 implementations.
 
-## Build instructions
+1. The `src` directory contains the SNOVA v3.1 implementation.
+2. The `dist` directory contains a Makefile for building all recommended SNOVA parameter instances, with each instance generated in a separate subdirectory.
+3. The `sage` directory contains a SageMath implementation of SNOVA, together with additional SageMath scripts.
+4. The `liboqs` directory contains the files required for integration with [liboqs](https://github.com/open-quantum-safe/liboqs).
 
-Building SNOVA requires a C compiler and `make`. The distribution includes implementations of AES (OQS) and SHAKE (PQCLEAN and XKCP).
-The SNOVA parameters are set in `src/snova_params.h`. The SNOVA parameters can also be changed by the command line parameters of the `make` command.
+For additional information, please refer to the README files in the respective subdirectories.
 
-To create the recommended SNOVA instances enter `make` in the `dist` folder.
-```
-cd dist
-make
-```
+## AI Disclosure
 
-To create the KAT files and their digests, starting in the `dist` folder
-```
-cd ref
-make kat
-make digest
-```
+The AVX2 implementation is derived from the Optimized implementation and was further optimized with the assistance of Claude Code.
 
-To obtain benchmarks
-```
-cd avx2
-OPT=AVX2 make speed
-OPT=AVX2 make speed
-```
-
-Use
-```
-OPT=OPT make speed
-```
-when AVX2 instructions are not available.
+ChatGPT and Claude Opus were used for language editing and refinement of the Supporting Document and README files. All AI-assisted contributions were reviewed by the authors. The authors retain full responsibility for the technical content, implementation, correctness, and final wording of the submitted materials.

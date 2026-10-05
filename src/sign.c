@@ -65,18 +65,24 @@ int crypto_sign(unsigned char *sm, unsigned long long *smlen, const unsigned cha
 	uint8_t digest[BYTES_DIGEST];
 	shake256(digest, BYTES_DIGEST, m, mlen);
 
+#if SNOVA_OPT == 5
+	memmove(sm + CRYPTO_BYTES, m, mlen);
+	*smlen = mlen + CRYPTO_BYTES;
+	res = SNOVA_NAMESPACE(sign)(pskx, sm, digest, BYTES_DIGEST, salt);
+#else
 	uint8_t sig[CRYPTO_BYTES];
 	res = SNOVA_NAMESPACE(sign)(pskx, sig, digest, BYTES_DIGEST, salt);
-
-#if defined(VALGRIND)
-	VALGRIND_MAKE_MEM_DEFINED(sig, CRYPTO_BYTES);
-#endif
 
 	if (!res) {
 		memmove(sm + CRYPTO_BYTES, m, mlen);
 		memcpy(sm, sig, CRYPTO_BYTES);
 		*smlen = mlen + CRYPTO_BYTES;
 	}
+#endif
+
+#if defined(VALGRIND)
+	VALGRIND_MAKE_MEM_DEFINED(sm, CRYPTO_BYTES);
+#endif
 
 	return res;
 }

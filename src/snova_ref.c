@@ -483,8 +483,41 @@ void expand_public(gf_t* P_matrix, const uint8_t *seed) {
 	for (int idx = 0; idx < SNOVA_o * SNOVA_alpha * (SNOVA_r2 + SNOVA_lr + 2 * SNOVA_l); idx++) {
 		abq[idx] = curval[idx];
 	}
-#else
+#elif PUB_REORDER
+	uint8_t pk_gf[NUM_GEN_PUB_GF];
+	convert_bytes_to_GF(pk_gf, (uint8_t *)pk_bytes, NUM_GEN_PUB_GF);
 
+	gf_t* P11 = P_matrix;
+	gf_t* P12 = P_matrix + SNOVA_m1 * SNOVA_v * SNOVA_v * SNOVA_l2;
+	gf_t* P21 = P_matrix + SNOVA_m1 * SNOVA_v * SNOVA_n * SNOVA_l2;
+	gf_t* curval = &pk_gf[0];
+
+	for (int mi = 0; mi < SNOVA_m1; ++mi) {
+		for (int ni = 0; ni < SNOVA_v; ++ni)
+			for (int nj = 0; nj < SNOVA_v; ++nj)
+				for (int i1 = 0; i1 < SNOVA_l; i1++)
+					for (int j1 = 0; j1 < SNOVA_l; j1++) {
+						P11[((mi * SNOVA_v + ni) * SNOVA_v + nj) * SNOVA_l2 + i1 * SNOVA_l + j1] = *curval;
+						curval++;
+					}
+
+		for (int ni = 0; ni < SNOVA_v; ++ni)
+			for (int nj = 0; nj < SNOVA_o; ++nj)
+				for (int i1 = 0; i1 < SNOVA_l; i1++)
+					for (int j1 = 0; j1 < SNOVA_l; j1++) {
+						P12[((mi * SNOVA_v + ni) * SNOVA_o + nj) * SNOVA_l2 + i1 * SNOVA_l + j1] = *curval;
+						curval++;
+					}
+
+		for (int ni = 0; ni < SNOVA_o; ++ni)
+			for (int nj = 0; nj < SNOVA_v; ++nj)
+				for (int i1 = 0; i1 < SNOVA_l; i1++)
+					for (int j1 = 0; j1 < SNOVA_l; j1++) {
+						P21[((mi * SNOVA_o + ni) * SNOVA_v + nj) * SNOVA_l2 + i1 * SNOVA_l + j1] = *curval;
+						curval++;
+					}
+	}
+#else
 	convert_bytes_to_GF(P_matrix, (uint8_t *)pk_bytes, NUM_GEN_PUB_GF);
 #endif
 }

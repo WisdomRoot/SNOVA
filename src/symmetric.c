@@ -61,7 +61,7 @@ void snova_pk_expand(uint8_t *out, size_t outlen, const uint8_t *in, size_t inle
 	AES128_CTR(out, outlen, in, inlen);
 }
 
-#define NUM_BYTES (12 * 16)
+#define NUM_BYTES (10 * 16)
 typedef struct {
 	uint8_t key[16];
 	uint8_t states[2 * NUM_BYTES];
@@ -244,7 +244,7 @@ void snova_pk_expand(uint8_t *out, size_t outlen, const uint8_t *in, size_t inle
 #define STREAM_PAR 1
 
 typedef struct {
-	uint64_t states[50 * STREAM_PAR];
+	uint64_t states[42 * STREAM_PAR];
 	uint8_t seed[SEED_LENGTH_PUBLIC];
 	uint32_t block;
 	uint32_t index;

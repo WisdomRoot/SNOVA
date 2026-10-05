@@ -5,8 +5,8 @@ endif
 CC = gcc
 # CC = clang
 
-CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Wredundant-decls -Wshadow -Wvla -Wpointer-arith -O3 -march=$(ARCH) -mtune=$(ARCH)
-# CFLAGS += -g -fstack-usage
+CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Wredundant-decls -Wshadow -Wvla -Wpointer-arith -fstack-usage -O3 -march=$(ARCH) -mtune=$(ARCH)
+# CFLAGS += -g
 # CFLAGS += -fsanitize=address -fsanitize=undefined -fsanitize-address-use-after-scope
 # CFLAGS += -fsanitize=memory
 CFLAGS += -DSNOVA_OPT=0

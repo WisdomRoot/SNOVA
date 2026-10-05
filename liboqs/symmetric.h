@@ -265,7 +265,7 @@ static void snova_pk_expand(uint8_t *data, size_t num_bytes, const uint8_t *in, 
 #else
 
 typedef struct {
-	uint64_t states[50];
+	uint64_t states[42];
 	uint8_t seed[SEED_LENGTH_PUBLIC];
 	uint32_t index;
 	uint32_t last_idx;

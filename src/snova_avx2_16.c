@@ -387,19 +387,19 @@ static inline gf16_t det_inline(const gf16m_t a) {
 static inline gf16_t det_inline(const gf16m_t a) {
 	gf16_t d0 = gf16_mul_inline(GF16M_AT(a, 0, 0),
 	                            gf16_add(gf16_add(POD4(a, 1, 1, 2, 2, 3, 3, 2, 3, 3, 2),
-	                                POD4(a, 1, 2, 2, 1, 3, 3, 2, 3, 3, 1)),
+	                                     POD4(a, 1, 2, 2, 1, 3, 3, 2, 3, 3, 1)),
 	                                     POD4(a, 1, 3, 2, 1, 3, 2, 2, 2, 3, 1)));
 	gf16_t d1 = gf16_mul_inline(GF16M_AT(a, 0, 1),
 	                            gf16_add(gf16_add(POD4(a, 1, 0, 2, 2, 3, 3, 2, 3, 3, 2),
-	                                POD4(a, 1, 2, 2, 0, 3, 3, 2, 3, 3, 0)),
+	                                     POD4(a, 1, 2, 2, 0, 3, 3, 2, 3, 3, 0)),
 	                                     POD4(a, 1, 3, 2, 0, 3, 2, 2, 2, 3, 0)));
 	gf16_t d2 = gf16_mul_inline(GF16M_AT(a, 0, 2),
 	                            gf16_add(gf16_add(POD4(a, 1, 0, 2, 1, 3, 3, 2, 3, 3, 1),
-	                                POD4(a, 1, 1, 2, 0, 3, 3, 2, 3, 3, 0)),
+	                                     POD4(a, 1, 1, 2, 0, 3, 3, 2, 3, 3, 0)),
 	                                     POD4(a, 1, 3, 2, 0, 3, 1, 2, 1, 3, 0)));
 	gf16_t d3 = gf16_mul_inline(GF16M_AT(a, 0, 3),
 	                            gf16_add(gf16_add(POD4(a, 1, 0, 2, 1, 3, 2, 2, 2, 3, 1),
-	                                POD4(a, 1, 1, 2, 0, 3, 2, 2, 2, 3, 0)),
+	                                     POD4(a, 1, 1, 2, 0, 3, 2, 2, 2, 3, 0)),
 	                                     POD4(a, 1, 2, 2, 0, 3, 1, 2, 1, 3, 0)));
 	return gf16_add(gf16_add(d0, d1), gf16_add(d2, d3));
 }
@@ -855,9 +855,9 @@ static inline rct_a4_bc_t rct_a4_bc(const gf_t *sc) {
 }
 static inline void rct_a4_mac(rct_a4_acc_t *A, rct_a4_bc_t b, const gf_t *w) {
 	A->a = _mm256_xor_si256(A->a, _mm256_gf2p8mul_epi8(b.bv,
-	    _mm256_loadu_si256((const __m256i *)w)));
+	                        _mm256_loadu_si256((const __m256i *)w)));
 	A->t = _mm_xor_si128(A->t, _mm_gf2p8mul_epi8(b.bt,
-	    _mm_loadu_si128((const __m128i *)&w[32])));
+	                     _mm_loadu_si128((const __m128i *)&w[32])));
 }
 static inline __m128i rct_a4_fold(rct_a4_acc_t A) {
 	__m128i f = _mm_xor_si128(_mm256_castsi256_si128(A.a),
@@ -890,11 +890,11 @@ static inline rct_a4_bc_t rct_a4_bc(const gf_t *sc) {
 }
 static inline void rct_a4_mac(rct_a4_acc_t *A, rct_a4_bc_t b, const gf_t *w) {
 	A->a01 = _mm_xor_si128(A->a01, _mm_gf2p8mul_epi8(b.b01,
-	    _mm_loadu_si128((const __m128i *)w)));
+	                       _mm_loadu_si128((const __m128i *)w)));
 	A->a23 = _mm_xor_si128(A->a23, _mm_gf2p8mul_epi8(b.b23,
-	    _mm_loadu_si128((const __m128i *)&w[12])));
+	                       _mm_loadu_si128((const __m128i *)&w[12])));
 	A->t   = _mm_xor_si128(A->t, _mm_gf2p8mul_epi8(b.bt,
-	    _mm_loadu_si128((const __m128i *)&w[24])));
+	                       _mm_loadu_si128((const __m128i *)&w[24])));
 }
 static inline __m128i rct_a4_fold(rct_a4_acc_t A) {
 	__m128i f = _mm_xor_si128(A.a01, A.a23);
@@ -925,9 +925,9 @@ static inline rct_a4_bc_t rct_a4_bc(const gf_t *sc) {
 }
 static inline void rct_a4_mac(rct_a4_acc_t *A, rct_a4_bc_t b, const gf_t *w) {
 	A->a = _mm_xor_si128(A->a, _mm_gf2p8mul_epi8(b.b012,
-	    _mm_loadu_si128((const __m128i *)w)));
+	                     _mm_loadu_si128((const __m128i *)w)));
 	A->b = _mm_xor_si128(A->b, _mm_gf2p8mul_epi8(b.b34,
-	    _mm_loadu_si128((const __m128i *)&w[15])));
+	                     _mm_loadu_si128((const __m128i *)&w[15])));
 }
 static inline __m128i rct_a4_fold(rct_a4_acc_t A) {
 	__m128i f = _mm_xor_si128(A.a, _mm_srli_si128(A.a, 5));
@@ -1031,12 +1031,12 @@ static inline rct_m4_bc_t rct_m4_bc(const gf_t *sc) {
 #endif
 static inline void rct_m4_mac(rct_m4_acc_t *A, rct_m4_bc_t b, const gf_t *w) {
 	A->a0 = _mm256_xor_si256(A->a0, _mm256_mullo_epi16(b.b0,
-	    _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *)w))));
+	                         _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *)w))));
 	A->a1 = _mm256_xor_si256(A->a1, _mm256_mullo_epi16(b.b1,
-	    _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *)&w[16]))));
+	                         _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *)&w[16]))));
 #if SNOVA_r == 8
 	A->a2 = _mm256_xor_si256(A->a2, _mm256_mullo_epi16(b.b2,
-	    _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *)&w[32]))));
+	                         _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *)&w[32]))));
 #endif
 }
 #if 0
@@ -1096,8 +1096,8 @@ static inline void rct_m4_mm_add(gf_t *C, const gf_t *A, const gf_t *B, int ad, 
 		__m128i acc = _mm_setzero_si128();
 		for (int k = 0; k < bd; ++k)
 			acc = _mm_xor_si128(acc, _mm_mullo_epi16(_mm_set1_epi16((short)xe[i * bd + k]),
-			    _mm256_castsi256_si128(_mm256_cvtepu8_epi16(
-			                               _mm_loadu_si128((const __m128i *)&B[k * cd])))));
+			                    _mm256_castsi256_si128(_mm256_cvtepu8_epi16(
+			                            _mm_loadu_si128((const __m128i *)&B[k * cd])))));
 		_Alignas(16) uint8_t pb[16];
 		_mm_store_si128((__m128i *)pb, _mm_packus_epi16(rct_m4_compress128(acc), _mm_setzero_si128()));
 		for (int j = 0; j < cd; ++j) {
@@ -1607,7 +1607,7 @@ static inline void rct_matmul_l4rows(gf_t *C, const gf_t *A, const gf_t *B, int 
 		__m128i acc = _mm_setzero_si128();
 		for (int k = 0; k < bd; ++k)
 			acc = _mm_xor_si128(acc, _mm_shuffle_epi8(rct_vtl128(A[i * bd + k]),
-			    _mm_loadu_si128((const __m128i *)&B[k * 4])));
+			                    _mm_loadu_si128((const __m128i *)&B[k * 4])));
 		uint32_t r = (uint32_t)_mm_cvtsi128_si32(acc);
 		memcpy(&C[i * 4], &r, 4);
 	}
@@ -1618,7 +1618,7 @@ static inline void rct_matmul_l4rows_add(gf_t *C, const gf_t *A, const gf_t *B, 
 		__m128i acc = _mm_setzero_si128();
 		for (int k = 0; k < bd; ++k)
 			acc = _mm_xor_si128(acc, _mm_shuffle_epi8(rct_vtl128(A[i * bd + k]),
-			    _mm_loadu_si128((const __m128i *)&B[k * 4])));
+			                    _mm_loadu_si128((const __m128i *)&B[k * 4])));
 		uint32_t cur;
 		memcpy(&cur, &C[i * 4], 4);
 		cur ^= (uint32_t)_mm_cvtsi128_si32(acc);
@@ -1657,7 +1657,7 @@ static inline void rct_matmul_l4rows_sec(gf_t *C, const gf_t *A, const gf_t *B, 
 		__m128i acc = _mm_setzero_si128();
 		for (int k = 0; k < bd; ++k)
 			acc = _mm_xor_si128(acc, rct_gf16_mul128_sec(_mm_set1_epi8((char)A[i * bd + k]),
-			    _mm_loadu_si128((const __m128i *)&B[k * 4])));
+			                    _mm_loadu_si128((const __m128i *)&B[k * 4])));
 		uint32_t r = (uint32_t)_mm_cvtsi128_si32(acc);
 		memcpy(&C[i * 4], &r, 4);
 	}
@@ -2264,7 +2264,43 @@ static void expand_public(gf_t *P_matrix, const uint8_t *seed) {
 	_Alignas(8) static uint8_t pk_bytes[((NUM_GEN_PUB_BYTES + 15) & ~(size_t)7u)];
 #endif
 	rct_public_xof(seed, pk_bytes, NUM_GEN_PUB_BYTES);
+#if PUB_REORDER
+	uint8_t pk_gf[NUM_GEN_PUB_GF];
+	convert_bytes_to_GF(pk_gf, (uint8_t *)pk_bytes, NUM_GEN_PUB_GF);
+
+	gf_t* P11 = P_matrix;
+	gf_t* P12 = P_matrix + SNOVA_m1 * SNOVA_v * SNOVA_v * SNOVA_l2;
+	gf_t* P21 = P_matrix + SNOVA_m1 * SNOVA_v * SNOVA_n * SNOVA_l2;
+	gf_t* curval = &pk_gf[0];
+
+	for (int mi = 0; mi < SNOVA_m1; ++mi) {
+		for (int ni = 0; ni < SNOVA_v; ++ni)
+			for (int nj = 0; nj < SNOVA_v; ++nj)
+				for (int i1 = 0; i1 < SNOVA_l; i1++)
+					for (int j1 = 0; j1 < SNOVA_l; j1++) {
+						P11[((mi * SNOVA_v + ni) * SNOVA_v + nj) * SNOVA_l2 + i1 * SNOVA_l + j1] = *curval;
+						curval++;
+					}
+
+		for (int ni = 0; ni < SNOVA_v; ++ni)
+			for (int nj = 0; nj < SNOVA_o; ++nj)
+				for (int i1 = 0; i1 < SNOVA_l; i1++)
+					for (int j1 = 0; j1 < SNOVA_l; j1++) {
+						P12[((mi * SNOVA_v + ni) * SNOVA_o + nj) * SNOVA_l2 + i1 * SNOVA_l + j1] = *curval;
+						curval++;
+					}
+
+		for (int ni = 0; ni < SNOVA_o; ++ni)
+			for (int nj = 0; nj < SNOVA_v; ++nj)
+				for (int i1 = 0; i1 < SNOVA_l; i1++)
+					for (int j1 = 0; j1 < SNOVA_l; j1++) {
+						P21[((mi * SNOVA_o + ni) * SNOVA_v + nj) * SNOVA_l2 + i1 * SNOVA_l + j1] = *curval;
+						curval++;
+					}
+	}
+#else
 	convert_bytes_to_GF(P_matrix, (uint8_t *)pk_bytes, NUM_GEN_PUB_GF);
+#endif
 }
 
 #if RCT_SIGN_STREAM || RCT_KG_STREAM || RCT_VERIFY_STREAM || RCT_PKX_PGEN
@@ -2634,9 +2670,9 @@ static inline rct_a4f_bc_t rct_a4f_bc(const gf_t *sc) {
 }
 static inline void rct_a4f_mac(rct_a4f_acc_t *A, rct_a4f_bc_t b, const gf_t *w) {
 	A->a = _mm_xor_si128(A->a, _mm_gf2p8mul_epi8(b.b012,
-	    _mm_loadu_si128((const __m128i *)w)));
+	                     _mm_loadu_si128((const __m128i *)w)));
 	A->b = _mm_xor_si128(A->b, _mm_gf2p8mul_epi8(b.b34,
-	    _mm_loadu_si128((const __m128i *)&w[15])));
+	                     _mm_loadu_si128((const __m128i *)&w[15])));
 }
 static inline __m128i rct_a4f_fold(rct_a4f_acc_t A) {
 	__m128i f = _mm_xor_si128(A.a, _mm_srli_si128(A.a, 5));
@@ -2692,9 +2728,9 @@ static inline rct_m4f_bc_t rct_m4f_bc(const gf_t *sc) {
 }
 static inline void rct_m4f_mac(rct_m4f_acc_t *A, rct_m4f_bc_t b, const gf_t *w) {
 	A->a0 = _mm256_xor_si256(A->a0, _mm256_mullo_epi16(b.b0,
-	    _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *)w))));
+	                         _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *)w))));
 	A->a1 = _mm256_xor_si256(A->a1, _mm256_mullo_epi16(b.b1,
-	    _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *)&w[16]))));
+	                         _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *)&w[16]))));
 }
 static inline __m128i rct_m4f_fold(rct_m4f_acc_t A) {
 	_Alignas(32) uint16_t tb[48];
@@ -3134,8 +3170,8 @@ static int rct_genkeys(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 					        (const __m128i *)&rw.cells[(size_t)idx * SNOVA_l2])), bsh);
 					for (int k1 = 0; k1 < SNOVA_o; k1++)
 						acc[k1] = _mm256_xor_si256(acc[k1], rct_gf16_mm4_bs(bsh,
-						    _mm256_cvtepu8_epi16(_mm_loadu_si128(
-						                             (const __m128i *)&T12[(idx * SNOVA_o + k1) * SNOVA_l2]))));
+						                           _mm256_cvtepu8_epi16(_mm_loadu_si128(
+						                                   (const __m128i *)&T12[(idx * SNOVA_o + k1) * SNOVA_l2]))));
 				}
 				for (int k1 = 0; k1 < SNOVA_o; k1++)
 					_mm_storeu_si128((__m128i *)&F12[((size_t)(i1 * SNOVA_v + j1) * SNOVA_o + k1) * SNOVA_l2],
@@ -3158,11 +3194,11 @@ static int rct_genkeys(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 					        (const __m128i *)&rw.cells[(size_t)idx * SNOVA_l2])), bshP);
 					for (int k1 = 0; k1 < SNOVA_o; k1++) {
 						acc[k1] = _mm256_xor_si256(acc[k1], rct_gf16_mm4_bs(bshT,
-						    _mm256_cvtepu8_epi16(_mm_loadu_si128(
-						                             (const __m128i *)&F12[((size_t)(i1 * SNOVA_v + idx) * SNOVA_o + k1) * SNOVA_l2]))));
+						                           _mm256_cvtepu8_epi16(_mm_loadu_si128(
+						                                   (const __m128i *)&F12[((size_t)(i1 * SNOVA_v + idx) * SNOVA_o + k1) * SNOVA_l2]))));
 						acc[k1] = _mm256_xor_si256(acc[k1], rct_gf16_mm4_bs(bshP,
-						    _mm256_cvtepu8_epi16(_mm_loadu_si128(
-						                             (const __m128i *)&T12[(idx * SNOVA_o + k1) * SNOVA_l2]))));
+						                           _mm256_cvtepu8_epi16(_mm_loadu_si128(
+						                                   (const __m128i *)&T12[(idx * SNOVA_o + k1) * SNOVA_l2]))));
 					}
 				}
 				for (int k1 = 0; k1 < SNOVA_o; k1++)
@@ -3305,8 +3341,8 @@ static int rct_genkeys(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 					        (const __m128i *)&P11[((i1 * SNOVA_v + j1) * SNOVA_v + idx) * SNOVA_l2])), bsh);
 					for (int k1 = 0; k1 < SNOVA_o; k1++)
 						acc[k1] = _mm256_xor_si256(acc[k1], rct_gf16_mm4_bs(bsh,
-						    _mm256_cvtepu8_epi16(_mm_loadu_si128(
-						                             (const __m128i *)&T12[(idx * SNOVA_o + k1) * SNOVA_l2]))));
+						                           _mm256_cvtepu8_epi16(_mm_loadu_si128(
+						                                   (const __m128i *)&T12[(idx * SNOVA_o + k1) * SNOVA_l2]))));
 				}
 				for (int k1 = 0; k1 < SNOVA_o; k1++)
 					_mm_storeu_si128((__m128i *)&F12[((i1 * SNOVA_v + j1) * SNOVA_o + k1) * SNOVA_l2],
@@ -3336,11 +3372,11 @@ static int rct_genkeys(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 					        (const __m128i *)&P21[((i1 * SNOVA_o + j1) * SNOVA_v + idx) * SNOVA_l2])), bshP);
 					for (int k1 = 0; k1 < SNOVA_o; k1++) {
 						acc[k1] = _mm256_xor_si256(acc[k1], rct_gf16_mm4_bs(bshT,
-						    _mm256_cvtepu8_epi16(_mm_loadu_si128(
-						                             (const __m128i *)&F12[((i1 * SNOVA_v + idx) * SNOVA_o + k1) * SNOVA_l2]))));
+						                           _mm256_cvtepu8_epi16(_mm_loadu_si128(
+						                                   (const __m128i *)&F12[((i1 * SNOVA_v + idx) * SNOVA_o + k1) * SNOVA_l2]))));
 						acc[k1] = _mm256_xor_si256(acc[k1], rct_gf16_mm4_bs(bshP,
-						    _mm256_cvtepu8_epi16(_mm_loadu_si128(
-						                             (const __m128i *)&T12[(idx * SNOVA_o + k1) * SNOVA_l2]))));
+						                           _mm256_cvtepu8_epi16(_mm_loadu_si128(
+						                                   (const __m128i *)&T12[(idx * SNOVA_o + k1) * SNOVA_l2]))));
 					}
 				}
 				for (int k1 = 0; k1 < SNOVA_o; k1++)
@@ -3810,7 +3846,7 @@ static void rct_sign_s1whip_simd(rct_sign_ctx *c) {
 					_mm256_store_si256(
 					    (__m256i *)&rct_cm_whip[(i1 * SNOVA_v + idx) * RCT_CMW + c1],
 					    gf16_expand_u16x16(_mm256_cvtepu8_epi16(_mm_load_si128((const __m128i *)
-					        &whipped_sig2[idx * SNOVA_l * SNOVA_lr32 + i1 * SNOVA_lr32 + c1]))));
+					                       &whipped_sig2[idx * SNOVA_l * SNOVA_lr32 + i1 * SNOVA_lr32 + c1]))));
 #if RCT_USE_GFNI
 		for (int idx = 0; idx < SNOVA_v; ++idx)
 			for (int i1 = 0; i1 < SNOVA_l; i1++)
@@ -3881,7 +3917,7 @@ static void rct_sign_s1whip_simd(rct_sign_ctx *c) {
 					}
 					for (int nj = 0; nj < SNOVA_v; ++nj) {
 						__m256i fy = _mm256_broadcastsi128_si256(_mm_loadu_si128(
-						        (const __m128i *)&P11[((mi * SNOVA_v + ni) * SNOVA_v + nj) * SNOVA_l2]));
+						                 (const __m128i *)&P11[((mi * SNOVA_v + ni) * SNOVA_v + nj) * SNOVA_l2]));
 						__m256i Acol[SNOVA_l];
 						for (int k1 = 0; k1 < SNOVA_l; ++k1) {
 							Acol[k1] = _mm256_shuffle_epi8(fy, s1_Pcol_y[k1]);
@@ -4193,8 +4229,8 @@ static void rct_skx_fold_F_mullo(gf_t *F21, gf_t *F12, const gf_t *T12, const gf
 					        (const __m128i *)&P11[((i1 * SNOVA_v + j1) * SNOVA_v + j2) * SNOVA_l2])), bsh);
 					for (int k1 = 0; k1 < SNOVA_o; k1++)
 						acc[k1] = _mm256_xor_si256(acc[k1], rct_gf16_mm4_bs(bsh,
-						    _mm256_cvtepu8_epi16(_mm_loadu_si128(
-						                             (const __m128i *)&T12[(j2 * SNOVA_o + k1) * SNOVA_l2]))));
+						                           _mm256_cvtepu8_epi16(_mm_loadu_si128(
+						                                   (const __m128i *)&T12[(j2 * SNOVA_o + k1) * SNOVA_l2]))));
 				}
 				for (int k1 = 0; k1 < SNOVA_o; k1++)
 					_mm_storeu_si128((__m128i *)&F12[((i1 * SNOVA_v + j1) * SNOVA_o + k1) * SNOVA_l2],
@@ -4225,11 +4261,11 @@ static void rct_skx_fold_F_qrp16(gf_t *F21, gf_t *F12, const gf_t *T12, const gf
 				}
 				for (int j2 = 0; j2 < SNOVA_v; j2++) {
 					__m256i bv = _mm256_broadcastsi128_si256(_mm_loadu_si128(
-					        (const __m128i *)&P11[((i1 * SNOVA_v + j2) * SNOVA_v + j1) * SNOVA_l2]));
+					                 (const __m128i *)&P11[((i1 * SNOVA_v + j2) * SNOVA_v + j1) * SNOVA_l2]));
 					__m256i B01 = _mm256_shuffle_epi8(bv, SB01), B23 = _mm256_shuffle_epi8(bv, SB23);
 					for (int k1 = 0; k1 < SNOVA_o; k1++) {
 						__m256i av = _mm256_broadcastsi128_si256(_mm_loadu_si128(
-						        (const __m128i *)&T12[(j2 * SNOVA_o + k1) * SNOVA_l2]));
+						                 (const __m128i *)&T12[(j2 * SNOVA_o + k1) * SNOVA_l2]));
 						__m256i P = _mm256_xor_si256(
 						                gf16_qrp16_256_byte_mul(_mm256_shuffle_epi8(av, SA01), B01),
 						                gf16_qrp16_256_byte_mul(_mm256_shuffle_epi8(av, SA23), B23));
@@ -4249,11 +4285,11 @@ static void rct_skx_fold_F_qrp16(gf_t *F21, gf_t *F12, const gf_t *T12, const gf
 				}
 				for (int j2 = 0; j2 < SNOVA_v; j2++) {
 					__m256i av = _mm256_broadcastsi128_si256(_mm_loadu_si128(
-					        (const __m128i *)&P11[((i1 * SNOVA_v + j1) * SNOVA_v + j2) * SNOVA_l2]));
+					                 (const __m128i *)&P11[((i1 * SNOVA_v + j1) * SNOVA_v + j2) * SNOVA_l2]));
 					__m256i A01 = _mm256_shuffle_epi8(av, SA01), A23 = _mm256_shuffle_epi8(av, SA23);
 					for (int k1 = 0; k1 < SNOVA_o; k1++) {
 						__m256i bv = _mm256_broadcastsi128_si256(_mm_loadu_si128(
-						        (const __m128i *)&T12[(j2 * SNOVA_o + k1) * SNOVA_l2]));
+						                 (const __m128i *)&T12[(j2 * SNOVA_o + k1) * SNOVA_l2]));
 						__m256i P = _mm256_xor_si256(
 						                gf16_qrp16_256_byte_mul(A01, _mm256_shuffle_epi8(bv, SB01)),
 						                gf16_qrp16_256_byte_mul(A23, _mm256_shuffle_epi8(bv, SB23)));
@@ -4432,7 +4468,7 @@ static void rct_sign_wF_gauss_cm(rct_sign_ctx *c) {
 							const uint8_t *wf = &wF21sb[(mp * SNOVA_l + b1) * RCT_CM_OLR32];
 							for (int c1 = 0; c1 < RCT_CM_OLR32N; ++c1)
 								acc[c1] = _mm256_xor_si256(acc[c1], RCT_GFMUL256(qv,
-								    _mm256_loadu_si256((const __m256i *)(wf + c1 * 32))));
+								                           _mm256_loadu_si256((const __m256i *)(wf + c1 * 32))));
 						}
 						for (int c1 = 0; c1 < RCT_CM_OLR32N; ++c1) {
 							__m256i T0 = rct_gfni_cleanup256(acc[c1]);
@@ -4462,7 +4498,7 @@ static void rct_sign_wF_gauss_cm(rct_sign_ctx *c) {
 							const uint8_t *wf = &wF21sb[(mp * SNOVA_l + b1) * RCT_CM_OLR32];
 							for (int c1 = 0; c1 < RCT_CM_OLR32N; ++c1)
 								acc[c1] = _mm256_xor_si256(acc[c1], RCT_GFMUL256(qv,
-								    _mm256_loadu_si256((const __m256i *)(wf + c1 * 32))));
+								                           _mm256_loadu_si256((const __m256i *)(wf + c1 * 32))));
 						}
 						for (int c1 = 0; c1 < RCT_CM_OLR32N; ++c1) {
 							__m256i r = rct_gfni_cleanup256(acc[c1]);
@@ -4527,7 +4563,7 @@ static void rct_sign_wF_gauss_cm(rct_sign_ctx *c) {
 							const uint8_t *wf = &wF12sb[(mp * SNOVA_l + b1) * RCT_CM_OLR32];
 							for (int c1 = 0; c1 < RCT_CM_OLR32N; ++c1)
 								acc[c1] = _mm256_xor_si256(acc[c1], RCT_GFMUL256(qv,
-								    _mm256_loadu_si256((const __m256i *)(wf + c1 * 32))));
+								                           _mm256_loadu_si256((const __m256i *)(wf + c1 * 32))));
 						}
 						for (int c1 = 0; c1 < RCT_CM_OLR32N; ++c1) {
 							__m256i T0 = rct_gfni_cleanup256(acc[c1]);
@@ -4558,7 +4594,7 @@ static void rct_sign_wF_gauss_cm(rct_sign_ctx *c) {
 							const uint8_t *wf = &wF12sb[(mp * SNOVA_l + b1) * RCT_CM_OLR32];
 							for (int c1 = 0; c1 < RCT_CM_OLR32N; ++c1)
 								acc[c1] = _mm256_xor_si256(acc[c1], RCT_GFMUL256(qv,
-								    _mm256_loadu_si256((const __m256i *)(wf + c1 * 32))));
+								                           _mm256_loadu_si256((const __m256i *)(wf + c1 * 32))));
 						}
 						for (int c1 = 0; c1 < RCT_CM_OLR32N; ++c1) {
 							__m256i r = rct_gfni_cleanup256(acc[c1]);
@@ -5088,7 +5124,7 @@ static void rct_sign_sumt_jog(rct_sign_ctx *c) {
 						__m128i bc = rct_sj_bc128(w[k1 * SNOVA_r + i1]);
 						for (int b1 = 0; b1 < SNOVA_l; ++b1)
 							acc[b1] = _mm_xor_si128(acc[b1], rct_sj_sv128(bc,
-							    _mm_loadu_si128((const __m128i *)&sum_t0[(((mi * SNOVA_l + b1) * SNOVA_v + ni)) * SNOVA_lr + k1 * SNOVA_r])));
+							                        _mm_loadu_si128((const __m128i *)&sum_t0[(((mi * SNOVA_l + b1) * SNOVA_v + ni)) * SNOVA_lr + k1 * SNOVA_r])));
 					}
 				}
 				for (int b1 = 0; b1 < SNOVA_l; ++b1) {
@@ -5332,7 +5368,7 @@ static void rct_sign_wf_jog(rct_sign_ctx *c) {
 						__m128i bc = rct_sj_bc128(fr[k1]);
 						for (int b1 = 0; b1 < SNOVA_l; ++b1)
 							acc[b1] = _mm_xor_si128(acc[b1], rct_sj_sv128(bc,
-							    _mm_loadu_si128((const __m128i *)&whipped_sig[(b1 * SNOVA_v + nj) * SNOVA_lr + k1 * SNOVA_r])));
+							                        _mm_loadu_si128((const __m128i *)&whipped_sig[(b1 * SNOVA_v + nj) * SNOVA_lr + k1 * SNOVA_r])));
 					}
 				}
 				for (int b1 = 0; b1 < SNOVA_l; ++b1) {
@@ -5351,7 +5387,7 @@ static void rct_sign_wf_jog(rct_sign_ctx *c) {
 						__m128i bc = rct_sj_bc128(F12[((mi * SNOVA_v + nj) * SNOVA_o + idx) * SNOVA_l2 + k1 * SNOVA_l + i1]);
 						for (int b1 = 0; b1 < SNOVA_l; ++b1)
 							acc[b1] = _mm_xor_si128(acc[b1], rct_sj_sv128(bc,
-							    _mm_loadu_si128((const __m128i *)&whipped_sig[(b1 * SNOVA_v + nj) * SNOVA_lr + k1 * SNOVA_r])));
+							                        _mm_loadu_si128((const __m128i *)&whipped_sig[(b1 * SNOVA_v + nj) * SNOVA_lr + k1 * SNOVA_r])));
 					}
 				}
 				for (int b1 = 0; b1 < SNOVA_l; ++b1) {
@@ -6581,7 +6617,7 @@ static int rct_sign_expanded(rct_skx_t *skx, uint8_t *sig, const uint8_t *digest
 
 	SNOVA_DUDECT_RETRY_RESET();
 	int sign_rc = 0;
-	do {
+	while (1) {
 		memset(gauss, 0, sizeof(gauss));
 		num_sign++;
 		SNOVA_DUDECT_RETRY_TICK();
@@ -6728,7 +6764,10 @@ static int rct_sign_expanded(rct_skx_t *skx, uint8_t *sig, const uint8_t *digest
 		flag_redo = rct_sign_gauss_q16(c);
 #endif
 
-		if (!flag_redo) {
+		if (flag_redo) {
+			continue;
+		}
+
 #if SNOVA_Q == 16
 #if defined(RCT_GAUSS_SCALAR)
 #define RCT_SOLPAD_HAS_GS 1
@@ -6752,27 +6791,27 @@ static int rct_sign_expanded(rct_skx_t *skx, uint8_t *sig, const uint8_t *digest
 #endif
 #if RCT_Q_SIMD && !defined(RCT_GAUSS_SCALAR) && RCT_Q_HAVE_MAGIC
 #elif SNOVA_Q == 16 && RCT_SOLPAD_BACKSUB
-			rct_sign_backsub_gfni(c, solpad, solution);
+		rct_sign_backsub_gfni(c, solpad, solution);
 #else
-			rct_sign_backsub_scalar(c, solution);
+		rct_sign_backsub_scalar(c, solution);
 #endif
 #if SNOVA_Q == 16
 #undef RCT_SOLPAD_BACKSUB
 #endif
-			memcpy(signature_in_GF + SNOVA_v * SNOVA_lr, solution, SNOVA_o * SNOVA_lr);
+		memcpy(signature_in_GF + SNOVA_v * SNOVA_lr, solution, SNOVA_o * SNOVA_lr);
 #if RCT_Q_SIMD && !defined(RCT_GAUSS_SCALAR) && RCT_Q_HAVE_MAGIC
-			rct_sign_apply_t12_oddq(c, sol16);
+		rct_sign_apply_t12_oddq(c, sol16);
 #elif SNOVA_Q == 16 && RCT_HOT_QRP16 && !RCT_USE_GFNI && defined(RCT_T12_MULLO) \
     && (RCT_T12_MULLO + 0) && !defined(RCT_GAUSS_SCALAR) && SNOVA_L == 4
-			rct_sign_apply_t12_mullo(c, solpad);
+		rct_sign_apply_t12_mullo(c, solpad);
 #elif SNOVA_Q == 16 && (RCT_USE_GFNI || RCT_HOT_QRP16) && !defined(RCT_GAUSS_SCALAR) && SNOVA_L == 4
-			rct_sign_apply_t12_gfni(c, solpad);
+		rct_sign_apply_t12_gfni(c, solpad);
 #elif RCT_SIGN_JOG && SNOVA_Q == 16 && RCT_GFMUL_ANY && !defined(RCT_GAUSS_SCALAR)
-			rct_sign_apply_t12_jog(c, solpad);
+		rct_sign_apply_t12_jog(c, solpad);
 #else
-			rct_sign_apply_t12_scalar(c, solution);
+		rct_sign_apply_t12_scalar(c, solution);
 #endif
-		}
+
 		RCT_PT(_pb);
 		RCT_PACC(7, _pa, _pb);
 		SNOVA_CLEAR_OBJ(vinegar_in_byte);
@@ -6784,7 +6823,8 @@ static int rct_sign_expanded(rct_skx_t *skx, uint8_t *sig, const uint8_t *digest
 		SNOVA_CLEAR_OBJ(whipped_F21);
 		SNOVA_CLEAR_OBJ(whipped_F12);
 #endif
-	} while (flag_redo);
+		break;
+	}
 #ifdef RCT_PROFILE
 	fprintf(stderr, "[SG] s0=%lu s1=%lu s2=%lu s3=%lu s4=%lu\n",
 	        (unsigned long)rct_pf[3], (unsigned long)rct_pf[4], (unsigned long)rct_pf[5],
@@ -7013,6 +7053,26 @@ static int rct_pkx_expand(rct_pkx_ctx *c) {
 			RCT_PKX_P22SEG(&pkx->P[(((size_t)(mi * SNOVA_n + SNOVA_v + ni) * SNOVA_n) + SNOVA_v) * SNOVA_l2],
 			               (size_t)(mi * SNOVA_o + ni) * SNOVA_o * SNOVA_l2, SNOVA_o * SNOVA_l2);
 #else
+#if PUB_REORDER
+	for (int mi = 0; mi < SNOVA_m1; ++mi) {
+		size_t offset = mi * SNOVA_v * (SNOVA_v + 2 * SNOVA_o) * SNOVA_l2;
+		for (int ni = 0; ni < SNOVA_v; ++ni) {
+			gf_t *row = &pkx->P[((size_t)(mi * SNOVA_n + ni) * SNOVA_n) * SNOVA_l2];
+			RCT_PKX_SEG(row, offset + (size_t)ni * SNOVA_v * SNOVA_l2,
+			            SNOVA_v * SNOVA_l2);
+			RCT_PKX_SEG(row + (size_t)SNOVA_v * SNOVA_l2,
+			            offset + SNOVA_v * SNOVA_v * SNOVA_l2 + (size_t)(ni) * SNOVA_o * SNOVA_l2,
+			            SNOVA_o * SNOVA_l2);
+		}
+		for (int ni = 0; ni < SNOVA_o; ++ni) {
+			gf_t *row = &pkx->P[((size_t)(mi * SNOVA_n + SNOVA_v + ni) * SNOVA_n) * SNOVA_l2];
+			RCT_PKX_SEG(row, offset + SNOVA_v * SNOVA_n * SNOVA_l2 + (size_t)(ni) * SNOVA_v * SNOVA_l2,
+			            SNOVA_v * SNOVA_l2);
+			RCT_PKX_P22SEG(row + (size_t)SNOVA_v * SNOVA_l2,
+			               (size_t)(mi * SNOVA_o + ni) * SNOVA_o * SNOVA_l2, SNOVA_o * SNOVA_l2);
+		}
+	}
+#else
 	for (int mi = 0; mi < SNOVA_m1; ++mi) {
 		for (int ni = 0; ni < SNOVA_v; ++ni) {
 			gf_t *row = &pkx->P[((size_t)(mi * SNOVA_n + ni) * SNOVA_n) * SNOVA_l2];
@@ -7030,6 +7090,7 @@ static int rct_pkx_expand(rct_pkx_ctx *c) {
 			               (size_t)(mi * SNOVA_o + ni) * SNOVA_o * SNOVA_l2, SNOVA_o * SNOVA_l2);
 		}
 	}
+#endif
 #undef RCT_PKX_SEG
 #endif
 #undef RCT_PKX_P22SEG
@@ -8587,13 +8648,13 @@ static void rct_vf_emat(rct_vf_ctx *c) {
 					memcpy(&q1d, &pkx->q1[t0i * SNOVA_l], 4);
 					memcpy(&q2d, &pkx->q2[t0i * SNOVA_l], 4);
 					_mm_store_si128((__m128i *)q12b, rct_qv_pack16(rct_q_barrett16(_mm256_mullo_epi16(
-					            _mm256_shuffle_epi8(_mm256_set1_epi32(q1d), RCT_QV_PA0),
-					            _mm256_shuffle_epi8(_mm256_set1_epi32(q2d), RCT_QV_PB)))));
+					                    _mm256_shuffle_epi8(_mm256_set1_epi32(q1d), RCT_QV_PA0),
+					                    _mm256_shuffle_epi8(_mm256_set1_epi32(q2d), RCT_QV_PB)))));
 					memcpy(&q1d, &pkx->q1[t1i * SNOVA_l], 4);
 					memcpy(&q2d, &pkx->q2[t1i * SNOVA_l], 4);
 					_mm_store_si128((__m128i *)(q12b + 16), rct_qv_pack16(rct_q_barrett16(_mm256_mullo_epi16(
-					            _mm256_shuffle_epi8(_mm256_set1_epi32(q1d), RCT_QV_PA0),
-					            _mm256_shuffle_epi8(_mm256_set1_epi32(q2d), RCT_QV_PB)))));
+					                    _mm256_shuffle_epi8(_mm256_set1_epi32(q1d), RCT_QV_PA0),
+					                    _mm256_shuffle_epi8(_mm256_set1_epi32(q2d), RCT_QV_PB)))));
 				}
 				const uint16_t *qp0 = (const uint16_t *)q12b;
 				const uint16_t *qp1 = (const uint16_t *)(q12b + 16);

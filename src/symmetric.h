@@ -19,7 +19,7 @@ void snova_pk_expand(uint8_t *out, size_t outlen, const uint8_t *in, size_t inle
 
 // Incremental API
 typedef struct {
-	uint64_t state[54];
+	uint64_t state[46];
 } snova_pk_expander_t;
 
 void snova_pk_expander_init(snova_pk_expander_t *instance, const uint8_t *seed, size_t input_bytes);

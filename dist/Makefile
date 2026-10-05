@@ -1,7 +1,7 @@
 all: clean snova
 
 clean:
-	rm -rf ref opt mem avx2
+	rm -rf ref opt avx2 mem tiny
 
 snova:
 	python makesnova.py

@@ -7,8 +7,8 @@ OPT = OPT
 endif
 
 CC = gcc
-CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Wredundant-decls -Wshadow -Wvla -Wpointer-arith -O3 -march=$(ARCH) -mtune=$(ARCH)
-# CFLAGS += -g -fstack-usage
+CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Wredundant-decls -Wshadow -Wvla -Wpointer-arith -fstack-usage -O3 -march=$(ARCH) -mtune=$(ARCH)
+# CFLAGS += -g
 # CFLAGS += -fsanitize=address -fsanitize=undefined -fsanitize-address-use-after-scope
 
 # Select appropriate source file
@@ -18,14 +18,14 @@ CFLAGS += -DSNOVA_OPT=0
 else ifeq ($(OPT), OPT)
 OBJS = ./build/snova_opt_16.o ./build/symmetric.o
 CFLAGS += -DSNOVA_OPT=10
-else ifeq ($(OPT), OPT2)
-OBJS = ./build/snova_opt_16_2.o ./build/symmetric.o
-CFLAGS += -DSNOVA_OPT=21
 else ifeq ($(OPT), AVX2)
 OBJS = ./build/snova_avx2_16.o ./build/symmetric.o
 CFLAGS += -DSNOVA_OPT=20
 else ifeq ($(OPT), MEM)
 OBJS = ./build/snova_memopt_16.o ./build/symmetric.o
+CFLAGS += -DSNOVA_OPT=5
+else ifeq ($(OPT), TINYMEM)
+OBJS = ./build/snova_tinymem_16.o ./build/symmetric_tiny.o
 CFLAGS += -DSNOVA_OPT=5
 else
 $(error OPT=$(OPT) is not supported)

@@ -8,6 +8,7 @@ import math
 import os
 import subprocess
 import sys
+import threading
 
 from hashlib import shake_256
 
@@ -27,7 +28,7 @@ recommended = [
 ]
 
 
-for paramset in recommended:
+def gen_kat(paramset, aes):
     pname = paramset[0]
 
     if paramset[1] == 'Sym':
@@ -52,38 +53,54 @@ for paramset in recommended:
     else:
         m1 = math.floor(o * r / l)
 
-    for aes in [True, False]:
-        name = pname + '_AES' if aes else pname
+    name = pname + '_AES' if aes else pname
 
-        with open('snova.sage') as infile:
-            data = infile.read()
+    with open('snova.sage') as infile:
+        data = infile.read()
 
-        # Create sage file from parameters
-        param_dict = {
-            "print('# SNOVA', v, o, q, l, r, m1, m2, 'AES' if aes else 'SHAKE', n_alpha)":
-            f"print('# {name}')",
-            "v = 27": f"v = {v}",
-            "o = 5": f"o = {o}",
-            "q = 16": f"q = {q}",
-            "l = 4": f"l = {l}",
-            "r = l": f"r = {r}",
-            "m1 = 5": f"m1 = {m1}",
-            "aes = False": f"aes = {aes}",
-            "range(1)": "range(100)",
-        }
-        for key in param_dict.keys():
-            data = data.replace(key, param_dict[key])
-        if symmetric:
-            data = data.replace('ASYMMETRIC_PUBMAT = True', 'ASYMMETRIC_PUBMAT = False')
+    # Create sage file from parameters
+    param_dict = {
+        "print('# SNOVA', v, o, q, l, r, m1, m2, 'AES' if aes else 'SHAKE', n_alpha)":
+        f"print('# {name}')",
+        "v = 27": f"v = {v}",
+        "o = 5": f"o = {o}",
+        "q = 16": f"q = {q}",
+        "l = 4": f"l = {l}",
+        "r = l": f"r = {r}",
+        "m1 = 5": f"m1 = {m1}",
+        "aes = False": f"aes = {aes}",
+        "range(1)": "range(100)",
+    }
+    for key in param_dict.keys():
+        data = data.replace(key, param_dict[key])
+    if symmetric:
+        data = data.replace('ASYMMETRIC_PUBMAT = True', 'ASYMMETRIC_PUBMAT = False')
 
-        with open(f'_{name}.sage', 'w') as outfile:
-            outfile.write(data)
+    with open(f'_{name}.sage', 'w') as outfile:
+        outfile.write(data)
 
-        # Run and print digest
+    # Run and print digest
 
-        result = subprocess.run(['sage', f'_{name}.sage'], capture_output=True, text=True)
-        digest = shake_256(result.stdout.encode()).digest(24).hex()
-        print(f'{name}.rsp  {digest}')
-        sys.stdout.flush()
+    result = subprocess.run(['sage', f'_{name}.sage'], capture_output=True, text=True)
+    digest = shake_256(result.stdout.encode()).digest(24).hex()
+    print(f'{name}.rsp  {digest}')
+    sys.stdout.flush()
 
-        os.remove(f'_{name}.sage')
+    os.remove(f'_{name}.sage')
+
+
+if len(sys.argv) == 2 and sys.argv[1] == 'multi':
+
+    # Run processes in parallel
+    thrds = []
+    for item in recommended:
+        for aes in [True, False]:
+            thrds.append(threading.Thread(target=gen_kat, args=[item, aes]))
+    for thrd in thrds:
+        thrd.start()
+    for thrd in thrds:
+        thrd.join()
+else:
+    for item in recommended:
+        for aes in [True, False]:
+            gen_kat(item, aes)

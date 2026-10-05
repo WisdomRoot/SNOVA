@@ -26,6 +26,7 @@ l = 4
 r = l
 m1 = 5
 aes = False
+pub_reorder = False
 
 ################################################################
 
@@ -242,35 +243,66 @@ def expand_public(seed):
 
     idx = 0
     Pm11 = []
-    for _ in range(m1):
-        p11 = matrix(GF_q, v * l, v * l)
-        for ni in range(v):
-            for nj in range(v):
-                for i1 in range(l):
-                    for j1 in range(l):
-                        p11[ni * l + i1, nj * l + j1] = data[idx]
-                        idx += 1
-        Pm11.append(p11)
     Pm12 = []
-    for _ in range(m1):
-        p12 = matrix(GF_q, v * l, o * l)
-        for ni in range(v):
-            for nj in range(o):
-                for i1 in range(l):
-                    for j1 in range(l):
-                        p12[ni * l + i1, nj * l + j1] = data[idx]
-                        idx += 1
-        Pm12.append(p12)
     Pm21 = []
-    for _ in range(m1):
-        p21 = matrix(GF_q, o * l, v * l)
-        for ni in range(o):
-            for nj in range(v):
-                for i1 in range(l):
-                    for j1 in range(l):
-                        p21[ni * l + i1, nj * l + j1] = data[idx]
-                        idx += 1
-        Pm21.append(p21)
+
+    if pub_reorder:
+        for _ in range(m1):
+            p11 = matrix(GF_q, v * l, v * l)
+            for ni in range(v):
+                for nj in range(v):
+                    for i1 in range(l):
+                        for j1 in range(l):
+                            p11[ni * l + i1, nj * l + j1] = data[idx]
+                            idx += 1
+            Pm11.append(p11)
+
+            p12 = matrix(GF_q, v * l, o * l)
+            for ni in range(v):
+                for nj in range(o):
+                    for i1 in range(l):
+                        for j1 in range(l):
+                            p12[ni * l + i1, nj * l + j1] = data[idx]
+                            idx += 1
+            Pm12.append(p12)
+
+            p21 = matrix(GF_q, o * l, v * l)
+            for ni in range(o):
+                for nj in range(v):
+                    for i1 in range(l):
+                        for j1 in range(l):
+                            p21[ni * l + i1, nj * l + j1] = data[idx]
+                            idx += 1
+            Pm21.append(p21)
+    else:
+        for _ in range(m1):
+            p11 = matrix(GF_q, v * l, v * l)
+            for ni in range(v):
+                for nj in range(v):
+                    for i1 in range(l):
+                        for j1 in range(l):
+                            p11[ni * l + i1, nj * l + j1] = data[idx]
+                            idx += 1
+            Pm11.append(p11)
+        for _ in range(m1):
+            p12 = matrix(GF_q, v * l, o * l)
+            for ni in range(v):
+                for nj in range(o):
+                    for i1 in range(l):
+                        for j1 in range(l):
+                            p12[ni * l + i1, nj * l + j1] = data[idx]
+                            idx += 1
+            Pm12.append(p12)
+        for _ in range(m1):
+            p21 = matrix(GF_q, o * l, v * l)
+            for ni in range(o):
+                for nj in range(v):
+                    for i1 in range(l):
+                        for j1 in range(l):
+                            p21[ni * l + i1, nj * l + j1] = data[idx]
+                            idx += 1
+            Pm21.append(p21)
+
     return Pm11, Pm12, Pm21
 
 

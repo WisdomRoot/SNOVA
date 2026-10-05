@@ -36,23 +36,22 @@ gen_sources = [
     'sign.c',
     'snova.h',
     'speed.c',
-    'symmetric.h',
 ]
 
 ref_sources = gen_sources + [
     'snova_ref.c',
+    'symmetric.h',
     'symmetric_ref.c',
 ]
 
 opt_sources = gen_sources + [
     'keccak_avx2.h',
     'keccak_avx512.h',
-    'symmetric.c',
 ]
 
 source_dir = '../src/'
 
-for target in ['ref', 'opt', 'mem', 'avx2']:
+for target in ['ref', 'opt', 'avx2', 'mem', 'tiny']:
     shutil.rmtree(target, ignore_errors=True)
     os.makedirs(target)
 
@@ -166,10 +165,19 @@ for target in ['ref', 'opt', 'mem', 'avx2']:
                 for file in ref_sources:
                     shutil.copyfile(source_dir + file, dirname + file)
             else:
-                sources = opt_sources
+                if target == 'tiny':
+                    sources = opt_sources + [
+                        'symmetric_tiny.h',
+                        'symmetric_tiny.c',]
+                else:
+                    sources = opt_sources + [
+                        'symmetric.h',
+                        'symmetric.c',]
+                for file in ref_sources:
+                    shutil.copyfile(source_dir + file, dirname + file)
 
-                if target == 'mem':
-                    snova_src = 'snova_memopt_16'
+                if target in ['mem', 'tiny']:
+                    snova_src = 'snova_tinymem_16' if target == 'tiny' else 'snova_memopt_16'
                     opt = 5
                     if o == 3 and l == 4 and r == 8:
                         sources += [
@@ -214,7 +222,11 @@ for target in ['ref', 'opt', 'mem', 'avx2']:
                     snova_src = 'snova_opt_16'
                     opt = 10
 
-                data = data.replace('symmetric_ref.o', 'symmetric.o')
+                if target == 'tiny':
+                    data = data.replace('symmetric_ref.o', 'symmetric_tiny.o')
+                else:
+                    data = data.replace('symmetric_ref.o', 'symmetric.o')
+
                 data = data.replace('snova_ref', snova_src)
                 data = data.replace('-DSNOVA_OPT=0', f'-DSNOVA_OPT={opt}')
 
