@@ -11,7 +11,7 @@
 {
    Rejection sampling of vinegar variables, no GFNI
    Memcheck:Cond
-   src:snova_opt_16.c:1327
+   src:snova_opt_16.c:1343
 }
 
 # q=16, AVX2
@@ -33,7 +33,7 @@
 {
    Rejection sampling of vinegar variables
    Memcheck:Cond
-   src:snova_memopt_16.c:858
+   src:snova_memopt_16.c:783
 }
 
 # q=16, Tiny memopt
@@ -41,7 +41,7 @@
 {
    Rejection sampling of vinegar variables
    Memcheck:Cond
-   src:snova_tinymem_16.c:875
+   src:snova_tinymem_16.c:820
 }
 
 # Wrapper
@@ -49,7 +49,7 @@
 {
    Condition depends on the sign return value
    Memcheck:Cond
-   src:sign.c:76
+   src:sign.c:78
 }
 
 # Test tool

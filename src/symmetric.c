@@ -16,6 +16,17 @@
 
 #include "snova.h"
 
+#ifndef snova_secure_clear
+#if __clang__
+__attribute__((optnone))
+#elif __GNUC__ > 4
+__attribute__((optimize("O0")))
+#endif
+void snova_secure_clear(void *ptr, size_t len) {
+	memset(ptr, 0, len);
+}
+#endif
+
 #include "keccak_opt64.h"
 
 void shake128_init(shake_t *instance) {

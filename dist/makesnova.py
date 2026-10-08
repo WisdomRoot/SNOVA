@@ -178,6 +178,9 @@ for target in ['ref', 'opt', 'avx2', 'mem', 'tiny']:
 
                 if target in ['mem', 'tiny']:
                     snova_src = 'snova_tinymem_16' if target == 'tiny' else 'snova_memopt_16'
+                    sources += [
+                        'abq_snova.h',
+                    ]
                     opt = 5
                     if o == 3 and l == 4 and r == 8:
                         sources += [

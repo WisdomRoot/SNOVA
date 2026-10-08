@@ -37,6 +37,8 @@ int crypto_sign_keypair(unsigned char *pk, unsigned char *sk) {
 #endif
 #endif
 
+	SNOVA_SECURE_CLEAR(seed);
+
 	return res;
 }
 
@@ -78,6 +80,8 @@ int crypto_sign(unsigned char *sm, unsigned long long *smlen, const unsigned cha
 		memcpy(sm, sig, CRYPTO_BYTES);
 		*smlen = mlen + CRYPTO_BYTES;
 	}
+
+	SNOVA_SECURE_CLEARI(skx_d);
 #endif
 
 #if defined(VALGRIND)

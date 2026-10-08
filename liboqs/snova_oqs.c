@@ -24,6 +24,8 @@ OQS_STATUS SNOVA_NAMESPACE(oqs_keypair)(uint8_t *pk, uint8_t *sk) {
 
 	int res = SNOVA_NAMESPACE(genkeys)(pk, sk, pt_public_key_seed);
 
+	SNOVA_SECURE_CLEAR(seed_pair);
+
 	if (res) {
 		return OQS_ERROR;
 	} else {
@@ -54,6 +56,11 @@ OQS_STATUS SNOVA_NAMESPACE(oqs_sign)(uint8_t *signature, size_t *signature_len, 
 	shake256(digest, BYTES_DIGEST, message, message_len);
 
 	res = SNOVA_NAMESPACE(sign)(pskx, sig, digest, BYTES_DIGEST, salt);
+
+#if SNOVA_OPT != 5
+	SNOVA_SECURE_CLEARI(skx_d);
+#endif
+
 	if (res) {
 		return OQS_ERROR;
 	} else {

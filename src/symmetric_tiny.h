@@ -27,4 +27,10 @@ void snova_pk_expander_squeeze(uint16_t *data, size_t num_bytes, snova_pk_expand
 void snova_pk_expander_goto(snova_pk_expander_t *instance, size_t index);
 void snova_pk_expander_free(snova_pk_expander_t *instance);
 
+void snova_secure_clear(void *ptr, size_t len);
+// #define snova_secure_clear(ptr, len) do { } while (0)
+
+#define SNOVA_SECURE_CLEAR(x) snova_secure_clear(x, sizeof(x));
+#define SNOVA_SECURE_CLEARI(x) snova_secure_clear(&x, sizeof(x));
+
 #endif

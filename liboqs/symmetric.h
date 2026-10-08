@@ -363,4 +363,9 @@ static void snova_pk_expander_free(snova_pk_expander_t *instance) {
 #endif
 #endif
 
+#define snova_secure_clear(p, n) OQS_MEM_cleanse(p, n);
+
+#define SNOVA_SECURE_CLEAR(x) snova_secure_clear(x, sizeof(x));
+#define SNOVA_SECURE_CLEARI(x) snova_secure_clear(&x, sizeof(x));
+
 #endif /* SYMMETRIC_H */

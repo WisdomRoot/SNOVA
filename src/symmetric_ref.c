@@ -12,6 +12,10 @@
 #include "snova.h"
 #include "symmetric.h"
 
+void snova_secure_clear(void *ptr, size_t len) {
+	memset(ptr, 0, len);
+}
+
 void shake128_init(shake_t *instance) {
 	memset(instance, 0, sizeof(shake_t));
 	instance->state[26] = 168;

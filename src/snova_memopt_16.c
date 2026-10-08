@@ -11,6 +11,7 @@
 
 #include "snova.h"
 #include "symmetric.h"
+#include "abq_snova.h"
 
 // Flag to control use of the public XOF bytes. Setting it results in KAT files that are different from the Round 3 specification.
 #ifndef PUB_REORDER
@@ -25,136 +26,20 @@
 #define SNOVA_olr (SNOVA_o * SNOVA_lr + 1)
 
 /**
- * Initialization
- */
-
-#if SNOVA_l == 2
-
-static uint16_t gf_S[SNOVA_l * SNOVA_l2] = {
-	0x1, 0x0, 0x0, 0x1, 0x8, 0x7, 0x7, 0x6
-};
-
-static uint16_t gf_Sx[SNOVA_l * SNOVA_l2] = {
-	0x1, 0x0, 0x0, 0x1, 0x1000, 0x111, 0x111, 0x110
-};
-
-#elif SNOVA_l == 4
-
-static uint16_t gf_S[SNOVA_l * SNOVA_l2] = {
-	0x1, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0,
-	0x1, 0x8, 0x7, 0x6, 0x5, 0x7, 0x6, 0x5, 0x4, 0x6, 0x5, 0x4, 0x3, 0x5, 0x4, 0x3,
-	0x2, 0xf, 0x6, 0x9, 0x1, 0x6, 0x0, 0x7, 0x4, 0x9, 0x7, 0x3, 0x0, 0x1, 0x4, 0x0,
-	0x0, 0x6, 0x3, 0x8, 0x7, 0x3, 0xa, 0x4, 0xc, 0x8, 0x4, 0x7, 0x1, 0x7, 0xc, 0x1,
-	0x6
-};
-
-static uint16_t gf_Sx[SNOVA_l * SNOVA_l2] = {
-	0x1, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0,
-	0x1, 0x1000, 0x111, 0x110, 0x101, 0x111, 0x110, 0x101, 0x100, 0x110, 0x101, 0x100, 0x11, 0x101, 0x100, 0x11,
-	0x10, 0x1111, 0x110, 0x1001, 0x1, 0x110, 0x0, 0x111, 0x100, 0x1001, 0x111, 0x11, 0x0, 0x1, 0x100, 0x0,
-	0x0, 0x110, 0x11, 0x1000, 0x111, 0x11, 0x1010, 0x100, 0x1100, 0x1000, 0x100, 0x111, 0x1, 0x111, 0x1100, 0x1,
-	0x110
-};
-
-#elif SNOVA_l == 5
-
-static uint16_t gf_S[SNOVA_l * SNOVA_l2] = {
-	0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0,
-	0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x8, 0x7, 0x6, 0x5, 0x4, 0x7,
-	0x6, 0x5, 0x4, 0x3, 0x6, 0x5, 0x4, 0x3, 0x2, 0x5, 0x4, 0x3, 0x2, 0x1, 0x4, 0x3,
-	0x2, 0x1, 0x9, 0xc, 0xa, 0x1, 0x5, 0x4, 0xa, 0x5, 0x1, 0x7, 0x3, 0x1, 0x1, 0x7,
-	0x2, 0xe, 0x5, 0x7, 0x2, 0x1, 0x6, 0x4, 0x3, 0xe, 0x6, 0xe, 0xe, 0x5, 0x9, 0xa,
-	0xd, 0x5, 0x1, 0x0, 0xd, 0xc, 0x9, 0x0, 0x5, 0x2, 0xc, 0xa, 0xd, 0x2, 0xf, 0x8,
-	0xd, 0xc, 0xc, 0x8, 0x8, 0x7, 0x0, 0x6, 0x6, 0x6, 0x0, 0x8, 0x7, 0x3, 0xf, 0x6,
-	0x7, 0x9, 0xc, 0xc, 0x6, 0x3, 0xc, 0x6, 0x5, 0x6, 0xf, 0xc, 0x5, 0x1
-};
-
-static uint16_t gf_Sx[SNOVA_l * SNOVA_l2] = {
-	0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0,
-	0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x1000, 0x111, 0x110, 0x101, 0x100, 0x111,
-	0x110, 0x101, 0x100, 0x11, 0x110, 0x101, 0x100, 0x11, 0x10, 0x101, 0x100, 0x11, 0x10, 0x1, 0x100, 0x11,
-	0x10, 0x1, 0x1001, 0x1100, 0x1010, 0x1, 0x101, 0x100, 0x1010, 0x101, 0x1, 0x111, 0x11, 0x1, 0x1, 0x111,
-	0x10, 0x1110, 0x101, 0x111, 0x10, 0x1, 0x110, 0x100, 0x11, 0x1110, 0x110, 0x1110, 0x1110, 0x101, 0x1001, 0x1010,
-	0x1101, 0x101, 0x1, 0x0, 0x1101, 0x1100, 0x1001, 0x0, 0x101, 0x10, 0x1100, 0x1010, 0x1101, 0x10, 0x1111, 0x1000,
-	0x1101, 0x1100, 0x1100, 0x1000, 0x1000, 0x111, 0x0, 0x110, 0x110, 0x110, 0x0, 0x1000, 0x111, 0x11, 0x1111, 0x110,
-	0x111, 0x1001, 0x1100, 0x1100, 0x110, 0x11, 0x1100, 0x110, 0x101, 0x110, 0x1111, 0x1100, 0x101, 0x1
-};
-
-#endif
-
-#if SNOVA_o == 3 && SNOVA_l == 4 && SNOVA_r == 8
-#include "abq_snova_i_k.h"
-#elif SNOVA_o == 4 && SNOVA_l == 4 && SNOVA_r == 6
-#include "abq_snova_i_b.h"
-#elif SNOVA_o == 5 && SNOVA_l == 4 && SNOVA_r == 4
-#include "abq_snova_i_s.h"
-#elif SNOVA_o == 4 && SNOVA_l == 4 && SNOVA_r == 8
-#include "abq_snova_iii_k.h"
-#elif SNOVA_o == 5 && SNOVA_l == 4 && SNOVA_r == 6
-#include "abq_snova_iii_b.h"
-#elif SNOVA_o == 6 && SNOVA_l == 4 && SNOVA_r == 5
-#include "abq_snova_iii_s.h"
-#elif SNOVA_o == 4 && SNOVA_l == 5 && SNOVA_r == 8
-#include "abq_snova_v_k.h"
-#elif SNOVA_o == 5 && SNOVA_l == 5 && SNOVA_r == 6
-#include "abq_snova_v_b.h"
-#elif SNOVA_o == 6 && SNOVA_l == 5 && SNOVA_r == 5
-#include "abq_snova_v_s.h"
-#else
-_Static_assert(0, "Unsupported parameters");
-#endif
-
-/**
  * Utilities
  */
+#define gf16_expand(a) (((a) | ((a) << 3) | ((a) << 6) | ((a) << 9)) & 0x1111)
+#define gf16_compress(a) (((a) & 0xf) ^ (((a) >> 3) & 0xe) ^ (((a) >> 6) & 0xe) ^ (((a) >> 7) & 0x1) ^ (((a) >> 9) & 0xe) ^ (((a) >> 10) & 0x3) ^ (((a) >> 12) & 0xe) ^ (((a) >> 13) & 0x7))
+#define ct_is_not_zero(val) ((val) != 0)
 
-static inline uint16_t gf16_expand(const uint8_t a) {
-	uint16_t val = a | (a << 3) | (a << 6) | (a << 9);
-	return val & 0x1111;
-}
-
-static inline uint16_t gf16_compress(const uint16_t a) {
-	uint16_t val = (a & 0xf) ^ ((a & 0xf0) >> 3) ^ ((a & 0xf00) >> 6) ^ ((a & 0xf000) >> 9);
-	return (val ^ ((val & 0xf0) >> 3) ^ (val >> 4)) & 0xf;
-}
-
-/**
- * Constant time function. CT is according to valgrind
- */
-static inline uint32_t ct_is_not_zero(uint8_t val) {
-	// return (val | (val >> 1) | (val >> 2) | (val >> 3)) & 1;
-	return val != 0;
-}
-
-/**
- * Constant time GF(16) inverse
- *
- * Use that x^q = x and therefore x^(q-2) = x^-1
- */
-static inline uint16_t ct_gf_inverse(uint16_t val) {
-	uint16_t fact = gf16_compress(val * gf16_expand(val));
-	uint16_t res = fact;
-
-	fact = gf16_compress(fact * gf16_expand(fact));
-	res = gf16_compress(res * gf16_expand(fact));
-
-	fact = gf16_compress(fact * gf16_expand(fact));
-	res = gf16_compress(res * gf16_expand(fact));
-
-	return gf16_expand(res);
-}
-
-static inline int convert_bytes_to_GF(uint8_t *gf_array, const uint8_t *byte_array, size_t num) {
+static inline void convert_bytes_to_GF(uint8_t *gf_array, const uint8_t *byte_array, size_t num) {
 	for (size_t idx = 0; idx < num / 2; idx++) {
-		gf_array[2 * idx] = (byte_array[idx] & 0xf) % SNOVA_q;
-		gf_array[2 * idx + 1] = (byte_array[idx] >> 4) % SNOVA_q;
+		gf_array[2 * idx] = byte_array[idx] & 0xf;
+		gf_array[2 * idx + 1] = byte_array[idx] >> 4;
 	}
 	if (num & 1) {
-		gf_array[num - 1] = (byte_array[num / 2] & 0xf) % SNOVA_q;
-		return byte_array[num / 2] & 0xF0;
+		gf_array[num - 1] = byte_array[num / 2] & 0xf;
 	}
-
-	return 0;
 }
 
 // Used to compress SIG(sign)
@@ -183,31 +68,29 @@ static inline void hash_combined(uint8_t *hash_out, const uint8_t *m, size_t mle
 }
 
 /**
- * calculate T12 matrix
- */
-static inline void gen_a_FqS_sec(uint8_t *Qm, uint8_t *q) {
-	for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-		uint16_t sum = 0;
-		for (int j1 = 0; j1 < SNOVA_l; j1++) {
-			sum ^= q[j1] * gf_Sx[j1 * SNOVA_l2 + i1];
-		}
-		Qm[i1] = gf16_compress(sum);
-	}
-}
-
-/**
  * Expand T12 matrix and coefficients. Shared by genkey and sign
  */
 static inline void expand_T12(uint8_t *T12, const uint8_t *seed) {
 	uint8_t T12coef[SNOVA_o * SNOVA_v * SNOVA_l];
 	uint8_t sk_data[(SNOVA_o * SNOVA_v * SNOVA_l + 1) / 2];
+	uint16_t sum;
 
 	shake256(sk_data, (SNOVA_o * SNOVA_v * SNOVA_l + 1) / 2, seed, SEED_LENGTH_PRIVATE);
 	convert_bytes_to_GF(T12coef, sk_data, SNOVA_o * SNOVA_v * SNOVA_l);
 
 	for (size_t i1 = 0; i1 < SNOVA_o * SNOVA_v; i1++) {
-		gen_a_FqS_sec(&T12[i1 * SNOVA_l2], &T12coef[i1 * SNOVA_l]);
+		for (int j1 = 0; j1 < SNOVA_l2; j1++) {
+			sum = 0;
+			for (int k1 = 0; k1 < SNOVA_l; k1++) {
+				sum ^= T12coef[i1 * SNOVA_l + k1] * gf_Sx[k1 * SNOVA_l2 + j1];
+			}
+			T12[i1 * SNOVA_l2 + j1] = gf16_compress(sum);
+		}
 	}
+
+	SNOVA_SECURE_CLEAR(sk_data);
+	SNOVA_SECURE_CLEAR(T12coef);
+	SNOVA_SECURE_CLEARI(sum);
 }
 
 /**
@@ -238,12 +121,13 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 
 	int idx = 0;
 	uint8_t *pp22 = pk + SEED_LENGTH_PUBLIC;
+	uint16_t F11i[SNOVA_o * SNOVA_l2];
 
 	for (int mi = 0; mi < SNOVA_m1; mi++) {
 		uint16_t P22x[SNOVA_o * SNOVA_o * SNOVA_l2] = {0};
 
 		for (int nj = 0; nj < SNOVA_v; nj++) {
-			uint16_t P11i[SNOVA_o * SNOVA_l2] = {0};
+			memset(F11i, 0, sizeof(F11i));
 			for (int nk = 0; nk < SNOVA_v; nk++) {
 				uint8_t P11b[SNOVA_l2] = {0};
 				snova_pk_expander_squeeze(P11b, SNOVA_l2, &instance);
@@ -255,12 +139,12 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 					for (int i1 = 0; i1 < SNOVA_l; i1++)
 						for (int j1 = 0; j1 < SNOVA_l; j1++)
 							for (int k1 = 0; k1 < SNOVA_l; k1++)
-								P11i[ni * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
+								F11i[ni * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
 								    T12[(nk * SNOVA_o + ni) * SNOVA_l2 + k1 * SNOVA_l + j1] * P11x[i1 * SNOVA_l + k1];
 			}
 
 			for (int i1 = 0; i1 < SNOVA_o * SNOVA_l2; i1++) {
-				P11i[i1] = gf16_expand(gf16_compress(P11i[i1]));
+				F11i[i1] = gf16_expand(gf16_compress(F11i[i1]));
 			}
 
 			for (int ni = 0; ni < SNOVA_o; ni++)
@@ -270,7 +154,7 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 							for (int k1 = 0; k1 < SNOVA_l; k1++)
 								P22x[(nk * SNOVA_o + ni) * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
 								    T12[(nj * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1] *
-								    P11i[ni * SNOVA_l2 + k1 * SNOVA_l + j1];
+								    F11i[ni * SNOVA_l2 + k1 * SNOVA_l + j1];
 		}
 
 		/**
@@ -344,14 +228,8 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 	shake256(sk + SEED_LENGTH_PUBLIC + SEED_LENGTH_PRIVATE, BYTES_PK_HASH, pk, BYTES_PK);
 #endif
 
-	return 0;
-}
-
-/**
- * SK expansion.
- */
-int SNOVA_NAMESPACE(sk_expand)(expanded_SK *skx, const uint8_t *sk) {
-	memcpy(skx, sk, BYTES_SK);
+	SNOVA_SECURE_CLEAR(T12);
+	SNOVA_SECURE_CLEAR(F11i);
 
 	return 0;
 }
@@ -385,9 +263,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 	}
 
 	// Find a solution for T.X
-	uint16_t gauss16[SNOVA_o * SNOVA_lr][SNOVA_olr];
 	uint8_t signature_in_GF[SNOVA_n * SNOVA_lr] = {0};
-	int flag_redo;
 	uint8_t num_sign = 0;
 
 	while (1) {
@@ -397,7 +273,9 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			memset(sig, 0, BYTES_SIGNATURE);
 			return -1;
 		}
-		flag_redo = 0;
+
+		uint16_t gauss16[SNOVA_o * SNOVA_lr][SNOVA_olr];
+		int flag_redo = 0;
 
 		// generate the vinegar value
 		uint8_t whipped_sig[SNOVA_l * SNOVA_v * SNOVA_lr] = {0};
@@ -416,24 +294,31 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 
 			convert_bytes_to_GF(signature_in_GF, vinegar_in_byte, SNOVA_v * SNOVA_lr);
 
+			SNOVA_SECURE_CLEARI(v_instance);
+			SNOVA_SECURE_CLEAR(vinegar_in_byte);
+		}
+
+		{
 			/**
 			 * Whip signature
 			 */
-			{
-				for (int ni = 0; ni < SNOVA_v; ++ni)
-					for (int i1 = 0; i1 < SNOVA_l; i1++) {
-						uint16_t whipped_sig1[SNOVA_lr] = {0};
-						for (int ab = 0; ab < SNOVA_l; ++ab)
-							for (int j1 = 0; j1 < SNOVA_r; j1++)
-								for (int k1 = 0; k1 < SNOVA_l; k1++)
-									whipped_sig1[ab * SNOVA_r + j1] ^=
-									    gf_Sx[ab * SNOVA_l2 + i1 * SNOVA_l + k1] * signature_in_GF[ni * SNOVA_lr + k1 * SNOVA_r + j1];
+			uint16_t whipped_sig1[SNOVA_lr] = {0};
 
-						for (int j1 = 0; j1 < SNOVA_lr; j1++) {
-							whipped_sig[(i1 * SNOVA_v + ni) * SNOVA_lr + j1] = gf16_compress(whipped_sig1[j1]);
-						}
+			for (int ni = 0; ni < SNOVA_v; ++ni)
+				for (int i1 = 0; i1 < SNOVA_l; i1++) {
+					memset(whipped_sig1, 0, sizeof(whipped_sig1));
+					for (int ab = 0; ab < SNOVA_l; ++ab)
+						for (int j1 = 0; j1 < SNOVA_r; j1++)
+							for (int k1 = 0; k1 < SNOVA_l; k1++)
+								whipped_sig1[ab * SNOVA_r + j1] ^=
+								    gf_Sx[ab * SNOVA_l2 + i1 * SNOVA_l + k1] * signature_in_GF[ni * SNOVA_lr + k1 * SNOVA_r + j1];
+
+					for (int j1 = 0; j1 < SNOVA_lr; j1++) {
+						whipped_sig[(i1 * SNOVA_v + ni) * SNOVA_lr + j1] = gf16_compress(whipped_sig1[j1]);
 					}
-			}
+				}
+
+			SNOVA_SECURE_CLEAR(whipped_sig1);
 		}
 
 		// Calculate Fvv
@@ -465,79 +350,91 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 		 * ****************************************************************************************************************************************************
 		 */
 
+		uint16_t sum_t1[SNOVA_l * SNOVA_r * SNOVA_lr];
+		uint16_t whipped_F12[SNOVA_l * SNOVA_o * SNOVA_lr];
+		uint16_t whipped_F21[SNOVA_l * SNOVA_o * SNOVA_lr];
+
 		for (int mi_prime = 0; mi_prime < SNOVA_m1; ++mi_prime) {
-			uint16_t sum_t1[SNOVA_l * SNOVA_r * SNOVA_lr] = {0};
-			uint16_t whipped_F12[SNOVA_l * SNOVA_o * SNOVA_lr] = {0};
-			uint16_t whipped_F21[SNOVA_l * SNOVA_o * SNOVA_lr] = {0};
+			memset(sum_t1, 0, sizeof(sum_t1));
+			memset(whipped_F12, 0, sizeof(whipped_F12));
+			memset(whipped_F21, 0, sizeof(whipped_F21));
 
-			for (int ni = 0; ni < SNOVA_v; ++ni) {
-				// P11
-				uint16_t sum_t0[SNOVA_l * SNOVA_lr] = {0};
-				uint16_t F12[SNOVA_o * SNOVA_l2] = {0};
+			{
+				uint16_t sum_t0[SNOVA_l * SNOVA_lr];
+				uint16_t F12[SNOVA_o * SNOVA_l2];
 
-				for (int nj = 0; nj < SNOVA_v; ++nj) {
-					uint8_t P11b[SNOVA_l2] = {0};
-					snova_pk_expander_squeeze(P11b, SNOVA_l2, &instance);
-					uint16_t P11x[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						P11x[i1] = gf16_expand(P11b[i1]);
+				for (int ni = 0; ni < SNOVA_v; ++ni) {
+					// P11
+					memset(sum_t0, 0, sizeof(sum_t0));
+					memset(F12, 0, sizeof(F12));
+
+					for (int nj = 0; nj < SNOVA_v; ++nj) {
+						uint8_t P11b[SNOVA_l2] = {0};
+						snova_pk_expander_squeeze(P11b, SNOVA_l2, &instance);
+						uint16_t P11x[SNOVA_l2];
+						for (int i1 = 0; i1 < SNOVA_l2; i1++) {
+							P11x[i1] = gf16_expand(P11b[i1]);
+						}
+
+						for (int k1 = 0; k1 < SNOVA_l; k1++)
+							for (int i1 = 0; i1 < SNOVA_l; i1++)
+								for (int b1 = 0; b1 < SNOVA_lr; ++b1)
+									sum_t0[i1 * SNOVA_lr + b1] ^=
+									    P11x[i1 * SNOVA_l + k1] *
+									    whipped_sig[(k1 * SNOVA_v + nj) * SNOVA_lr + b1];
+
+						for (int nk = 0; nk < SNOVA_o; nk++)
+							for (int i1 = 0; i1 < SNOVA_l; i1++)
+								for (int j1 = 0; j1 < SNOVA_l; j1++)
+									for (int k1 = 0; k1 < SNOVA_l; k1++)
+										F12[nk * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
+										    T12[(nj * SNOVA_o + nk) * SNOVA_l2 + k1 * SNOVA_l + j1] *
+										    P11x[i1 * SNOVA_l + k1];
 					}
 
-					for (int k1 = 0; k1 < SNOVA_l; k1++)
-						for (int i1 = 0; i1 < SNOVA_l; i1++)
-							for (int b1 = 0; b1 < SNOVA_lr; ++b1)
-								sum_t0[i1 * SNOVA_lr + b1] ^=
-								    P11x[i1 * SNOVA_l + k1] *
-								    whipped_sig[(k1 * SNOVA_v + nj) * SNOVA_lr + b1];
+					for (int i1 = 0; i1 < SNOVA_l * SNOVA_lr; ++i1) {
+						sum_t0[i1] = gf16_expand(gf16_compress(sum_t0[i1]));
+					}
+
+					// Left, transposed whipped_sig
+					for (int a1 = 0; a1 < SNOVA_l; ++a1)
+						for (int k1 = 0; k1 < SNOVA_l; k1++)
+							for (int i1 = 0; i1 < SNOVA_r; i1++)
+								for (int b1 = 0; b1 < SNOVA_lr; ++b1)
+									sum_t1[a1 * SNOVA_r * SNOVA_lr + i1 * SNOVA_lr + b1] ^=
+									    whipped_sig[(k1 * SNOVA_v + ni) * SNOVA_lr + a1 * SNOVA_r + i1] *
+									    sum_t0[k1 * SNOVA_lr + b1];
+
+					/**
+					 * Start F12
+					 */
+
+					for (int i1 = 0; i1 < SNOVA_o * SNOVA_l2; i1++) {
+						F12[i1] = gf16_expand(gf16_compress(F12[i1]));
+					}
 
 					for (int nk = 0; nk < SNOVA_o; nk++)
 						for (int i1 = 0; i1 < SNOVA_l; i1++)
-							for (int j1 = 0; j1 < SNOVA_l; j1++)
-								for (int k1 = 0; k1 < SNOVA_l; k1++)
-									F12[nk * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-									    T12[(nj * SNOVA_o + nk) * SNOVA_l2 + k1 * SNOVA_l + j1] *
-									    P11x[i1 * SNOVA_l + k1];
-				}
-
-				for (int i1 = 0; i1 < SNOVA_l * SNOVA_lr; ++i1) {
-					sum_t0[i1] = gf16_expand(gf16_compress(sum_t0[i1]));
-				}
-
-				// Left, transposed whipped_sig
-				for (int a1 = 0; a1 < SNOVA_l; ++a1)
-					for (int k1 = 0; k1 < SNOVA_l; k1++)
-						for (int i1 = 0; i1 < SNOVA_r; i1++)
 							for (int b1 = 0; b1 < SNOVA_lr; ++b1)
-								sum_t1[a1 * SNOVA_r * SNOVA_lr + i1 * SNOVA_lr + b1] ^=
-								    whipped_sig[(k1 * SNOVA_v + ni) * SNOVA_lr + a1 * SNOVA_r + i1] *
-								    sum_t0[k1 * SNOVA_lr + b1];
+								for (int k1 = 0; k1 < SNOVA_l; k1++)
+									whipped_F12[(i1 * SNOVA_o + nk) * SNOVA_lr + b1] ^=
+									    F12[nk * SNOVA_l2 + k1 * SNOVA_l + i1] *
+									    whipped_sig[(k1 * SNOVA_v + ni) * SNOVA_lr + b1];
 
-				/**
-				 * Start F12
-				 */
-
-				for (int i1 = 0; i1 < SNOVA_o * SNOVA_l2; i1++) {
-					F12[i1] = gf16_expand(gf16_compress(F12[i1]));
+					/**
+					 * Start whipped_F21
+					 */
+					for (int k1 = 0; k1 < SNOVA_l; k1++)
+						for (int b1 = 0; b1 < SNOVA_l; ++b1)
+							for (int nk = 0; nk < SNOVA_o; nk++)
+								for (int i1 = 0; i1 < SNOVA_l; i1++)
+									for (int j1 = 0; j1 < SNOVA_r; j1++)
+										whipped_F21[(b1 * SNOVA_o + nk) * SNOVA_lr + i1 * SNOVA_r + j1] ^=
+										    T12[(ni * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1] * sum_t0[k1 * SNOVA_lr + b1 * SNOVA_r + j1];
 				}
 
-				for (int nk = 0; nk < SNOVA_o; nk++)
-					for (int i1 = 0; i1 < SNOVA_l; i1++)
-						for (int b1 = 0; b1 < SNOVA_lr; ++b1)
-							for (int k1 = 0; k1 < SNOVA_l; k1++)
-								whipped_F12[(i1 * SNOVA_o + nk) * SNOVA_lr + b1] ^=
-								    F12[nk * SNOVA_l2 + k1 * SNOVA_l + i1] *
-								    whipped_sig[(k1 * SNOVA_v + ni) * SNOVA_lr + b1];
-
-				/**
-				 * Start whipped_F21
-				 */
-				for (int k1 = 0; k1 < SNOVA_l; k1++)
-					for (int b1 = 0; b1 < SNOVA_l; ++b1)
-						for (int nk = 0; nk < SNOVA_o; nk++)
-							for (int i1 = 0; i1 < SNOVA_l; i1++)
-								for (int j1 = 0; j1 < SNOVA_r; j1++)
-									whipped_F21[(b1 * SNOVA_o + nk) * SNOVA_lr + i1 * SNOVA_r + j1] ^=
-									    T12[(ni * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1] * sum_t0[k1 * SNOVA_lr + b1 * SNOVA_r + j1];
+				SNOVA_SECURE_CLEAR(sum_t0);
+				SNOVA_SECURE_CLEAR(F12);
 			}
 
 			for (int i1 = 0; i1 < SNOVA_l * SNOVA_r * SNOVA_lr; i1++) {
@@ -597,20 +494,18 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 				whipped_F21[i1] = gf16_compress(whipped_F21[i1]);
 			}
 
-			uint16_t sum_t1s[SNOVA_l * SNOVA_l * SNOVA_r2] = {0};
-
-			for (int a1 = 0; a1 < SNOVA_l; ++a1)
-				for (int b1 = 0; b1 < SNOVA_l; ++b1)
-					for (int i1 = 0; i1 < SNOVA_r; i1++)
-						for (int j1 = 0; j1 < SNOVA_r; j1++)
-							sum_t1s[a1 * SNOVA_l * SNOVA_r2 + b1 * SNOVA_r2 + i1 * SNOVA_r + j1] =
-							    sum_t1[a1 * SNOVA_r * SNOVA_lr + i1 * SNOVA_lr + b1 * SNOVA_r + j1];
-
 			/**
 			 * Alpha loop **********************************************************************************************************
 			 *
 			 * Apply A, B, q1 and q2, aka E matrix
 			 */
+
+			uint16_t gfm_temp0[SNOVA_olr];
+			uint16_t gfm_temp1[SNOVA_olr];
+			uint16_t gfm_temp2[SNOVA_olr];
+			uint16_t Q12[SNOVA_l2];
+			uint16_t sum;
+
 			for (int alpha = 0; alpha < SNOVA_alpha; ++alpha) {
 				int mi = (mi_prime + SNOVA_m1 * SNOVA_alpha - alpha) % SNOVA_m1;
 
@@ -618,54 +513,53 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 					continue;
 				}
 
-				{
-					/**
-					 * F_vv
-					 */
-					uint16_t gfm_temp1[SNOVA_r2] = {0};
-					uint16_t gfm_temp2[SNOVA_lr] = {0};
+				/**
+				 * F_vv
+				 */
+				memset(gfm_temp1, 0, sizeof(gfm_temp1));
+				memset(gfm_temp2, 0, sizeof(gfm_temp2));
 
-					// apply q1 and q2
-					for (int a1 = 0; a1 < SNOVA_l; ++a1) {
-						uint16_t gfm_temp0[SNOVA_r2] = {0};
+				// apply q1 and q2
+				for (int a1 = 0; a1 < SNOVA_l; ++a1) {
+					memset(gfm_temp0, 0, sizeof(gfm_temp0));
 
-						for (int b1 = 0; b1 < SNOVA_l; ++b1)
-							for (int i1 = 0; i1 < SNOVA_r2; i1++)
-								gfm_temp0[i1] ^= sum_t1s[a1 * SNOVA_l * SNOVA_r2 + b1 * SNOVA_r2 + i1] *
-								                 fixedq2[(mi * SNOVA_alpha + alpha) * SNOVA_l + b1];
+					for (int b1 = 0; b1 < SNOVA_l; ++b1)
+						for (int i1 = 0; i1 < SNOVA_r; i1++)
+							for (int j1 = 0; j1 < SNOVA_r; j1++)
+								gfm_temp0[i1 * SNOVA_r + j1] ^= sum_t1[a1 * SNOVA_r * SNOVA_lr + i1 * SNOVA_lr + b1 * SNOVA_r + j1] *
+								                                fixedq2[(mi * SNOVA_alpha + alpha) * SNOVA_l + b1];
 
-						for (int i1 = 0; i1 < SNOVA_r2; i1++) {
-							gfm_temp0[i1] = gf16_compress(gfm_temp0[i1]);
-						}
-
-						for (int i1 = 0; i1 < SNOVA_r2; i1++) {
-							gfm_temp1[i1] ^= gfm_temp0[i1] * fixedq1[(mi * SNOVA_alpha + alpha) * SNOVA_l + a1];
-						}
+					for (int i1 = 0; i1 < SNOVA_r2; i1++) {
+						gfm_temp0[i1] = gf16_compress(gfm_temp0[i1]);
 					}
 
 					for (int i1 = 0; i1 < SNOVA_r2; i1++) {
-						gfm_temp1[i1] = gf16_compress(gfm_temp1[i1]);
+						gfm_temp1[i1] ^= gfm_temp0[i1] * fixedq1[(mi * SNOVA_alpha + alpha) * SNOVA_l + a1];
 					}
-
-					// A and B
-					for (int i1 = 0; i1 < SNOVA_r; i1++)
-						for (int j1 = 0; j1 < SNOVA_l; j1++)
-							for (int k1 = 0; k1 < SNOVA_r; k1++) {
-								gfm_temp2[i1 * SNOVA_l + j1] ^=
-								    gfm_temp1[i1 * SNOVA_r + k1] * fixedBm[(mi * SNOVA_alpha + alpha) * SNOVA_lr + k1 * SNOVA_l + j1];
-							}
-
-					for (int i1 = 0; i1 < SNOVA_lr; i1++) {
-						gfm_temp2[i1] = gf16_compress(gfm_temp2[i1]);
-					}
-
-					for (int i1 = 0; i1 < SNOVA_r; i1++)
-						for (int j1 = 0; j1 < SNOVA_l; j1++)
-							for (int k1 = 0; k1 < SNOVA_r; k1++) {
-								gauss16[mi * SNOVA_lr + i1 * SNOVA_l + j1][SNOVA_o * SNOVA_lr] ^=
-								    fixedAm[(mi * SNOVA_alpha + alpha) * SNOVA_r2 + i1 * SNOVA_r + k1] * gfm_temp2[k1 * SNOVA_l + j1];
-							}
 				}
+
+				for (int i1 = 0; i1 < SNOVA_r2; i1++) {
+					gfm_temp1[i1] = gf16_compress(gfm_temp1[i1]);
+				}
+
+				// A and B
+				for (int i1 = 0; i1 < SNOVA_r; i1++)
+					for (int j1 = 0; j1 < SNOVA_l; j1++)
+						for (int k1 = 0; k1 < SNOVA_r; k1++) {
+							gfm_temp2[i1 * SNOVA_l + j1] ^=
+							    gfm_temp1[i1 * SNOVA_r + k1] * fixedBm[(mi * SNOVA_alpha + alpha) * SNOVA_lr + k1 * SNOVA_l + j1];
+						}
+
+				for (int i1 = 0; i1 < SNOVA_lr; i1++) {
+					gfm_temp2[i1] = gf16_compress(gfm_temp2[i1]);
+				}
+
+				for (int i1 = 0; i1 < SNOVA_r; i1++)
+					for (int j1 = 0; j1 < SNOVA_l; j1++)
+						for (int k1 = 0; k1 < SNOVA_r; k1++) {
+							gauss16[mi * SNOVA_lr + i1 * SNOVA_l + j1][SNOVA_o * SNOVA_lr] ^=
+							    fixedAm[(mi * SNOVA_alpha + alpha) * SNOVA_r2 + i1 * SNOVA_r + k1] * gfm_temp2[k1 * SNOVA_l + j1];
+						}
 			}
 
 			// compute the coefficients of Xo and put into gauss matrix and compute
@@ -678,64 +572,61 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 					continue;
 				}
 
-				{
-					uint16_t gfm_temp0[SNOVA_olr] = {0};
-					uint16_t gfm_temp1[SNOVA_olr] = {0};
-					uint16_t gfm_temp2[SNOVA_olr] = {0};
+				memset(gfm_temp0, 0, sizeof(gfm_temp0));
+				memset(gfm_temp1, 0, sizeof(gfm_temp1));
+				memset(gfm_temp2, 0, sizeof(gfm_temp2));
 
-					// Transpose
-					for (int i1 = 0; i1 < SNOVA_l; i1++)
-						for (int idx = 0; idx < SNOVA_o; idx++)
-							for (int b1 = 0; b1 < SNOVA_l; ++b1)
-								for (int j1 = 0; j1 < SNOVA_r; j1++)
-									gfm_temp0[idx * SNOVA_lr + i1 * SNOVA_r + j1] ^=
-									    whipped_F12[(i1 * SNOVA_o + idx) * SNOVA_lr + b1 * SNOVA_r + j1] *
-									    fixedq1[(mi * SNOVA_alpha + alpha) * SNOVA_l + b1];
-
-					for (int i1 = 0; i1 < SNOVA_olr; i1++) {
-						gfm_temp0[i1] = gf16_compress(gfm_temp0[i1]);
-					}
-
+				// Transpose
+				for (int i1 = 0; i1 < SNOVA_l; i1++)
 					for (int idx = 0; idx < SNOVA_o; idx++)
-						for (int i1 = 0; i1 < SNOVA_r; i1++)
-							for (int j1 = 0; j1 < SNOVA_l; j1++)
-								for (int k1 = 0; k1 < SNOVA_r; k1++)
-									gfm_temp1[idx * SNOVA_lr + i1 * SNOVA_l + j1] ^=
-									    fixedAm[(mi * SNOVA_alpha + alpha) * SNOVA_r2 + i1 * SNOVA_r + k1] *
-									    gfm_temp0[idx * SNOVA_lr + j1 * SNOVA_r + k1];
+						for (int b1 = 0; b1 < SNOVA_l; ++b1)
+							for (int j1 = 0; j1 < SNOVA_r; j1++)
+								gfm_temp0[idx * SNOVA_lr + i1 * SNOVA_r + j1] ^=
+								    whipped_F12[(i1 * SNOVA_o + idx) * SNOVA_lr + b1 * SNOVA_r + j1] *
+								    fixedq1[(mi * SNOVA_alpha + alpha) * SNOVA_l + b1];
 
-					for (int i1 = 0; i1 < SNOVA_o * SNOVA_lr; i1++) {
-						gfm_temp1[i1] = gf16_compress(gfm_temp1[i1]);
-					}
-
-					uint16_t Q2[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						uint16_t sum = 0;
-						for (int j1 = 0; j1 < SNOVA_l; j1++) {
-							sum ^= fixedq2[(mi * SNOVA_alpha + alpha) * SNOVA_l + j1] * gf_S[j1 * SNOVA_l2 + i1];
-						}
-						Q2[i1] = gf16_expand(gf16_compress(sum));
-					}
-
-					for (int idx = 0; idx < SNOVA_o; idx++)
-						for (int i1 = 0; i1 < SNOVA_r; i1++)
-							for (int j1 = 0; j1 < SNOVA_l; j1++)
-								for (int k1 = 0; k1 < SNOVA_l; k1++) {
-									gfm_temp2[idx * SNOVA_lr + i1 * SNOVA_l + j1] ^= gfm_temp1[idx * SNOVA_lr + i1 * SNOVA_l + k1] * Q2[k1 * SNOVA_l + j1];
-								}
-
-					for (int i1 = 0; i1 < SNOVA_o * SNOVA_lr; i1++) {
-						gfm_temp2[i1] = gf16_compress(gfm_temp2[i1]);
-					}
-
-					for (int idx = 0; idx < SNOVA_o; idx++)
-						for (int ti1 = 0; ti1 < SNOVA_r; ti1++)
-							for (int ti2 = 0; ti2 < SNOVA_l; ti2++)
-								for (int tj2 = 0; tj2 < SNOVA_r; tj2++)
-									for (int tj1 = 0; tj1 < SNOVA_l; tj1++)
-										gauss16[mi * SNOVA_lr + ti1 * SNOVA_l + ti2][idx * SNOVA_lr + tj1 * SNOVA_r + tj2] ^=
-										    gfm_temp2[idx * SNOVA_lr + ti1 * SNOVA_l + tj1] * fixedBm[(mi * SNOVA_alpha + alpha) * SNOVA_lr + tj2 * SNOVA_l + ti2];
+				for (int i1 = 0; i1 < SNOVA_olr; i1++) {
+					gfm_temp0[i1] = gf16_compress(gfm_temp0[i1]);
 				}
+
+				for (int idx = 0; idx < SNOVA_o; idx++)
+					for (int i1 = 0; i1 < SNOVA_r; i1++)
+						for (int j1 = 0; j1 < SNOVA_l; j1++)
+							for (int k1 = 0; k1 < SNOVA_r; k1++)
+								gfm_temp1[idx * SNOVA_lr + i1 * SNOVA_l + j1] ^=
+								    fixedAm[(mi * SNOVA_alpha + alpha) * SNOVA_r2 + i1 * SNOVA_r + k1] *
+								    gfm_temp0[idx * SNOVA_lr + j1 * SNOVA_r + k1];
+
+				for (int i1 = 0; i1 < SNOVA_o * SNOVA_lr; i1++) {
+					gfm_temp1[i1] = gf16_compress(gfm_temp1[i1]);
+				}
+
+				for (int i1 = 0; i1 < SNOVA_l2; i1++) {
+					sum = 0;
+					for (int j1 = 0; j1 < SNOVA_l; j1++) {
+						sum ^= fixedq2[(mi * SNOVA_alpha + alpha) * SNOVA_l + j1] * gf_S[j1 * SNOVA_l2 + i1];
+					}
+					Q12[i1] = gf16_expand(gf16_compress(sum));
+				}
+
+				for (int idx = 0; idx < SNOVA_o; idx++)
+					for (int i1 = 0; i1 < SNOVA_r; i1++)
+						for (int j1 = 0; j1 < SNOVA_l; j1++)
+							for (int k1 = 0; k1 < SNOVA_l; k1++) {
+								gfm_temp2[idx * SNOVA_lr + i1 * SNOVA_l + j1] ^= gfm_temp1[idx * SNOVA_lr + i1 * SNOVA_l + k1] * Q12[k1 * SNOVA_l + j1];
+							}
+
+				for (int i1 = 0; i1 < SNOVA_o * SNOVA_lr; i1++) {
+					gfm_temp2[i1] = gf16_compress(gfm_temp2[i1]);
+				}
+
+				for (int idx = 0; idx < SNOVA_o; idx++)
+					for (int ti1 = 0; ti1 < SNOVA_r; ti1++)
+						for (int ti2 = 0; ti2 < SNOVA_l; ti2++)
+							for (int tj2 = 0; tj2 < SNOVA_r; tj2++)
+								for (int tj1 = 0; tj1 < SNOVA_l; tj1++)
+									gauss16[mi * SNOVA_lr + ti1 * SNOVA_l + ti2][idx * SNOVA_lr + tj1 * SNOVA_r + tj2] ^=
+									    gfm_temp2[idx * SNOVA_lr + ti1 * SNOVA_l + tj1] * fixedBm[(mi * SNOVA_alpha + alpha) * SNOVA_lr + tj2 * SNOVA_l + ti2];
 
 				/**
 				 * End of F12
@@ -743,66 +634,73 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 				 * Start F21
 				 */
 
-				{
-					uint16_t gfm_temp0[SNOVA_o * SNOVA_lr] = {0};
-					uint16_t gfm_temp1[SNOVA_o * SNOVA_l2] = {0};
-					uint16_t gfm_temp2[SNOVA_olr] = {0};
+				memset(gfm_temp0, 0, sizeof(gfm_temp0));
+				memset(gfm_temp1, 0, sizeof(gfm_temp1));
+				memset(gfm_temp2, 0, sizeof(gfm_temp2));
 
-					for (int idx = 0; idx < SNOVA_o; idx++)
-						for (int b1 = 0; b1 < SNOVA_l; ++b1)
-							for (int i1 = 0; i1 < SNOVA_l; i1++)
-								for (int j1 = 0; j1 < SNOVA_r; j1++)
-									gfm_temp0[idx * SNOVA_lr + i1 * SNOVA_r + j1] ^=
-									    whipped_F21[(b1 * SNOVA_o + idx) * SNOVA_lr + i1 * SNOVA_r + j1] *
-									    fixedq2[(mi * SNOVA_alpha + alpha) * SNOVA_l + b1];
-
-					for (int i1 = 0; i1 < SNOVA_o * SNOVA_lr; i1++) {
-						gfm_temp0[i1] = gf16_compress(gfm_temp0[i1]);
-					}
-
-					for (int idx = 0; idx < SNOVA_o; idx++)
+				for (int idx = 0; idx < SNOVA_o; idx++)
+					for (int b1 = 0; b1 < SNOVA_l; ++b1)
 						for (int i1 = 0; i1 < SNOVA_l; i1++)
-							for (int j1 = 0; j1 < SNOVA_l; j1++)
-								for (int k1 = 0; k1 < SNOVA_r; k1++) {
-									gfm_temp1[idx * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-									    gfm_temp0[idx * SNOVA_lr + i1 * SNOVA_r + k1] *
-									    fixedBm[(mi * SNOVA_alpha + alpha) * SNOVA_lr + k1 * SNOVA_l + j1];
-								}
+							for (int j1 = 0; j1 < SNOVA_r; j1++)
+								gfm_temp0[idx * SNOVA_lr + i1 * SNOVA_r + j1] ^=
+								    whipped_F21[(b1 * SNOVA_o + idx) * SNOVA_lr + i1 * SNOVA_r + j1] *
+								    fixedq2[(mi * SNOVA_alpha + alpha) * SNOVA_l + b1];
 
-					for (int i1 = 0; i1 < SNOVA_o * SNOVA_l2; i1++) {
-						gfm_temp1[i1] = gf16_compress(gfm_temp1[i1]);
-					}
-
-					uint16_t Q1[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						uint16_t sum = 0;
-						for (int j1 = 0; j1 < SNOVA_l; j1++) {
-							sum ^= fixedq1[(mi * SNOVA_alpha + alpha) * SNOVA_l + j1] * gf_S[j1 * SNOVA_l2 + i1];
-						}
-						Q1[i1] = gf16_expand(gf16_compress(sum));
-					}
-
-					for (int idx = 0; idx < SNOVA_o; idx++)
-						for (int i1 = 0; i1 < SNOVA_l; i1++)
-							for (int j1 = 0; j1 < SNOVA_l; j1++)
-								for (int k1 = 0; k1 < SNOVA_l; k1++) {
-									gfm_temp2[idx * SNOVA_l2 + i1 * SNOVA_l + j1] ^= Q1[i1 * SNOVA_l + k1] * gfm_temp1[idx * SNOVA_l2 + k1 * SNOVA_l + j1];
-								}
-
-					for (int i1 = 0; i1 < SNOVA_o * SNOVA_l2; i1++) {
-						gfm_temp2[i1] = gf16_compress(gfm_temp2[i1]);
-					}
-
-					for (int idx = 0; idx < SNOVA_o; idx++)
-						for (int ti1 = 0; ti1 < SNOVA_r; ti1++)
-							for (int ti2 = 0; ti2 < SNOVA_l; ti2++)
-								for (int tj2 = 0; tj2 < SNOVA_r; tj2++)
-									for (int tj1 = 0; tj1 < SNOVA_l; tj1++)
-										gauss16[mi * SNOVA_lr + ti1 * SNOVA_l + ti2][idx * SNOVA_lr + tj1 * SNOVA_r + tj2] ^=
-										    gfm_temp2[idx * SNOVA_l2 + tj1 * SNOVA_l + ti2] * fixedAm[(mi * SNOVA_alpha + alpha) * SNOVA_r2 + ti1 * SNOVA_r + tj2];
+				for (int i1 = 0; i1 < SNOVA_o * SNOVA_lr; i1++) {
+					gfm_temp0[i1] = gf16_compress(gfm_temp0[i1]);
 				}
+
+				for (int idx = 0; idx < SNOVA_o; idx++)
+					for (int i1 = 0; i1 < SNOVA_l; i1++)
+						for (int j1 = 0; j1 < SNOVA_l; j1++)
+							for (int k1 = 0; k1 < SNOVA_r; k1++) {
+								gfm_temp1[idx * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
+								    gfm_temp0[idx * SNOVA_lr + i1 * SNOVA_r + k1] *
+								    fixedBm[(mi * SNOVA_alpha + alpha) * SNOVA_lr + k1 * SNOVA_l + j1];
+							}
+
+				for (int i1 = 0; i1 < SNOVA_o * SNOVA_l2; i1++) {
+					gfm_temp1[i1] = gf16_compress(gfm_temp1[i1]);
+				}
+
+				for (int i1 = 0; i1 < SNOVA_l2; i1++) {
+					sum = 0;
+					for (int j1 = 0; j1 < SNOVA_l; j1++) {
+						sum ^= fixedq1[(mi * SNOVA_alpha + alpha) * SNOVA_l + j1] * gf_S[j1 * SNOVA_l2 + i1];
+					}
+					Q12[i1] = gf16_expand(gf16_compress(sum));
+				}
+
+				for (int idx = 0; idx < SNOVA_o; idx++)
+					for (int i1 = 0; i1 < SNOVA_l; i1++)
+						for (int j1 = 0; j1 < SNOVA_l; j1++)
+							for (int k1 = 0; k1 < SNOVA_l; k1++) {
+								gfm_temp2[idx * SNOVA_l2 + i1 * SNOVA_l + j1] ^= Q12[i1 * SNOVA_l + k1] * gfm_temp1[idx * SNOVA_l2 + k1 * SNOVA_l + j1];
+							}
+
+				for (int i1 = 0; i1 < SNOVA_o * SNOVA_l2; i1++) {
+					gfm_temp2[i1] = gf16_compress(gfm_temp2[i1]);
+				}
+
+				for (int idx = 0; idx < SNOVA_o; idx++)
+					for (int ti1 = 0; ti1 < SNOVA_r; ti1++)
+						for (int ti2 = 0; ti2 < SNOVA_l; ti2++)
+							for (int tj2 = 0; tj2 < SNOVA_r; tj2++)
+								for (int tj1 = 0; tj1 < SNOVA_l; tj1++)
+									gauss16[mi * SNOVA_lr + ti1 * SNOVA_l + ti2][idx * SNOVA_lr + tj1 * SNOVA_r + tj2] ^=
+									    gfm_temp2[idx * SNOVA_l2 + tj1 * SNOVA_l + ti2] * fixedAm[(mi * SNOVA_alpha + alpha) * SNOVA_r2 + ti1 * SNOVA_r + tj2];
 			}
+
+			SNOVA_SECURE_CLEAR(gfm_temp0);
+			SNOVA_SECURE_CLEAR(gfm_temp1);
+			SNOVA_SECURE_CLEAR(gfm_temp2);
+			SNOVA_SECURE_CLEAR(Q12);
+			SNOVA_SECURE_CLEARI(sum);
 		}
+
+		SNOVA_SECURE_CLEAR(sum_t1);
+		SNOVA_SECURE_CLEAR(whipped_F12);
+		SNOVA_SECURE_CLEAR(whipped_F21);
 
 		snova_pk_expander_free(&instance);
 #if !PUB_REORDER
@@ -820,6 +718,9 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			}
 
 		// Gaussian elimination in constant time
+		uint16_t t_GF16;
+		uint16_t fact;
+
 		for (int i = 0; i < SNOVA_o * SNOVA_lr; ++i) {
 			for (int j = i + 1; j < SNOVA_o * SNOVA_lr; ++j) {
 				int16_t mask = ct_is_not_zero(gauss16[i][i]) - 1;
@@ -834,7 +735,28 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 
 			flag_redo |= 1 - ct_is_not_zero(gauss16[i][i]);
 
-			uint16_t t_GF16 = ct_gf_inverse(gauss16[i][i]);
+			/**
+			 * Constant time GF(16) inverse
+			 *
+			 * Use that x^q = x and therefore x^(q-2) = x^-1
+			 *
+			 * t_GF16 = ct_gf_inverse(gauss16[i][i]);
+			 */
+			fact = gauss16[i][i] * gf16_expand(gauss16[i][i]);
+			fact = gf16_compress(fact);
+			t_GF16 = fact;
+
+			fact = fact * gf16_expand(fact);
+			fact = gf16_compress(fact);
+			t_GF16 = t_GF16 * gf16_expand(fact);
+			t_GF16 = gf16_compress(t_GF16);
+
+			fact = fact * gf16_expand(fact);
+			fact = gf16_compress(fact);
+			t_GF16 = t_GF16 * gf16_expand(fact);
+			t_GF16 = gf16_compress(t_GF16);
+			t_GF16 = gf16_expand(t_GF16);
+
 			for (int k = 0; k < SNOVA_olr; ++k) {
 				gauss16[i][k] = gauss16[i][k] * t_GF16;
 			}
@@ -844,9 +766,9 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			}
 
 			for (int j = i + 1; j < SNOVA_o * SNOVA_lr; ++j) {
-				uint16_t gji = gf16_expand(gauss16[j][i]);
+				t_GF16 = gf16_expand(gauss16[j][i]);
 				for (int k = 0; k < SNOVA_olr; ++k) {
-					gauss16[j][k] ^= gauss16[i][k] * gji;
+					gauss16[j][k] ^= gauss16[i][k] * t_GF16;
 				}
 			}
 
@@ -855,6 +777,9 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			}
 		}
 
+		SNOVA_SECURE_CLEARI(t_GF16);
+		SNOVA_SECURE_CLEARI(fact);
+
 		if (flag_redo) {
 			continue;
 		}
@@ -862,9 +787,10 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 		// Last step of Gaussian elimination
 		uint8_t solution[SNOVA_olr] = {0};
 		uint16_t solution16[SNOVA_o * SNOVA_lr] = {0};
+		uint16_t sum;
 
 		for (int i = SNOVA_o * SNOVA_lr - 1; i >= 0; --i) {
-			uint16_t sum = 0;
+			sum = 0;
 			for (int k = i + 1; k < SNOVA_o * SNOVA_lr; ++k) {
 				sum ^= gauss16[i][k] * solution16[k];
 			}
@@ -881,7 +807,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			for (int mi = 0; mi < SNOVA_o; ++mi)
 				for (int i1 = 0; i1 < SNOVA_l; i1++)
 					for (int j1 = 0; j1 < SNOVA_r; j1++) {
-						uint16_t sum = 0;
+						sum = 0;
 						for (int k1 = 0; k1 < SNOVA_l; k1++) {
 							sum ^= gf16_expand(T12[(index * SNOVA_o + mi) * SNOVA_l2 + i1 * SNOVA_l + k1]) *
 							       solution[mi * SNOVA_lr + k1 * SNOVA_r + j1];
@@ -891,20 +817,19 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 
 		memcpy(signature_in_GF + SNOVA_v * SNOVA_lr, solution, SNOVA_o * SNOVA_lr);
 
+		SNOVA_SECURE_CLEAR(gauss16);
+		SNOVA_SECURE_CLEAR(whipped_sig);
+		SNOVA_SECURE_CLEAR(solution);
+		SNOVA_SECURE_CLEAR(solution16);
+		SNOVA_SECURE_CLEARI(sum);
+
 		break;
 	}
 
+	SNOVA_SECURE_CLEAR(T12);
+
 	compress_gf(sig, signature_in_GF, SNOVA_n * SNOVA_lr);
 	memcpy(sig + BYTES_SIGNATURE - BYTES_SALT, salt, BYTES_SALT);
-
-	return 0;
-}
-
-/**
- * PK expansion.
- */
-int SNOVA_NAMESPACE(pk_expand)(expanded_PK *pkx, const uint8_t *pk) {
-	memcpy(pkx, pk, BYTES_PK);
 
 	return 0;
 }
