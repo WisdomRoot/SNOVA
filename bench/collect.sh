@@ -10,8 +10,9 @@
 #
 # Each build's rows are kept in build/collect/<revision>/ as soon as they are
 # measured, and a build already there is not measured again, so a run that
-# was stopped resumes where it stopped. The directory is per revision, so rows
-# from different source trees never mix.
+# was stopped resumes where it stopped. The directory is per revision, as
+# ./revision prints it, so rows from different source trees never mix, even
+# two different uncommitted edits of src/.
 #
 # OUT.tsv is written only when every build has its rows: a build that fails to
 # build or verify is reported, the rest still run, and the exit status is 1.
@@ -43,10 +44,7 @@ JOBS=${JOBS:-4}
 # DEFS, is stock.
 FLAGS=${FLAGS:-'|'}
 
-if [ -z "${REV:-}" ]; then
-  REV=$(git log -1 --format=%h -- ../src)
-  git diff --quiet HEAD -- ../src || REV="$REV+dirty"
-fi
+[ -n "${REV:-}" ] || REV=$(./revision)
 
 parts=build/collect/$REV
 mkdir -p "$parts"

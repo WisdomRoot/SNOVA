@@ -9,8 +9,8 @@
 #   SET     l1-k l1-b l1-s l3-k l3-b l3-s l5-k l5-b l5-s
 #   -n      the flag's name for the flags column, e.g. narrow-gf16
 #   -D      the -D flags that turn it on, e.g. '-DNARROW_GF16=1'
-#   -r      the revision column; default the last commit touching src/,
-#           with +dirty appended if src/ has uncommitted changes
+#   -r      the revision column; default what ./revision prints: the last
+#           commit touching src/, plus a hash of any uncommitted changes
 #
 # Run inside `nix develop`. One row per (isa, op), with no header:
 #
@@ -60,10 +60,7 @@ set=$2
 
 cd "$(dirname "$0")"
 
-if [ -z "$rev" ]; then
-  rev=$(git log -1 --format=%h -- ../src)
-  git diff --quiet HEAD -- ../src || rev="$rev+dirty"
-fi
+[ -n "$rev" ] || rev=$(./revision)
 
 flags="kernel=$kernel"
 [ -z "$name" ] || flags="$flags, $name"
