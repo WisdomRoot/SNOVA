@@ -72,7 +72,7 @@ void randombytes_regen(void) {
   outleft = sizeof(out_buf);
 }
 
-int randombytes(uint8_t *buf, size_t xlen) {
+int randombytes(unsigned char *buf, unsigned long long xlen) {
   while (xlen > 0) {
     if (!outleft) {
       randombytes_regen();
