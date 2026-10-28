@@ -178,3 +178,6 @@ typings/
 /SNOVA_*/ref/
 /SNOVA_*/opt/
 /SNOVA_*/avx2/
+
+# bench
+/bench/build/
