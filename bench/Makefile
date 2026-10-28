@@ -130,7 +130,7 @@ SNOVA_CFLAGS := -Wall -Wextra -Wpedantic -Wredundant-decls -Wshadow -Wvla -Wpoin
 # How many times speed repeats each operation before reporting the median.
 NTESTS ?= 1
 
-.PHONY: baseline run-baseline stack speed run-stack run-speed clean
+.PHONY: baseline run-baseline stack speed run-stack run-speed print-snova-build clean
 baseline: $(BUILD)/baseline.elf
 
 run-baseline: $(BUILD)/baseline.elf
@@ -144,6 +144,11 @@ run-stack: $(SNOVA_BUILD)/stack.elf
 
 run-speed: $(SNOVA_BUILD)/speed.elf
 	./emulate $(ISA) $<
+
+# Where stack.elf and speed.elf land for this KERNEL, SET and DEFS; measure
+# asks rather than rebuilding the directory name itself.
+print-snova-build:
+	@echo $(SNOVA_BUILD)
 
 clean:
 	rm -rf build
