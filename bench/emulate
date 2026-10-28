@@ -1,0 +1,42 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+#
+# Run an ELF on one of the two measurement machines.
+#
+#   emulate arm|riscv ELF [EXTRA_QEMU_ARGS...]
+#
+# Copied from pqsca's scripts/emulate and cut down to its two instruments:
+#
+#   arm    qemu-system-arm mps2-an386 (Cortex-M4)
+#   riscv  qemu-system-riscv32 virt, with -m 512M because the linker script
+#          hands out that much RAM, and -bios none so the hart starts at the
+#          ELF entry in M-mode, which riscv32-virt/start.S expects.
+#
+# Both exit through semihosting when main returns. The emulator replaces this
+# shell, so its exit status and output pass straight through.
+set -eu
+
+usage() {
+  echo "usage: emulate arm|riscv ELF [EXTRA_QEMU_ARGS...]" >&2
+  exit 2
+}
+
+[ $# -ge 2 ] || usage
+isa=$1
+elf=$2
+shift 2
+[ -f "$elf" ] || { echo "emulate: ELF not found: $elf" >&2; exit 2; }
+
+case $isa in
+arm)
+  exec qemu-system-arm -machine mps2-an386 -nographic -semihosting \
+    -kernel "$elf" "$@"
+  ;;
+riscv)
+  exec qemu-system-riscv32 -machine virt -m 512M -bios none -nographic \
+    -semihosting -kernel "$elf" "$@"
+  ;;
+*)
+  usage
+  ;;
+esac

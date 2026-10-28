@@ -1,0 +1,129 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+#
+# Measure one SNOVA build on both ISAs and print its TSV rows.
+#
+#   measure [-n NAME] [-D DEFS] [-r REV] KERNEL SET
+#
+#   KERNEL  ref, opt, mem or tinymem
+#   SET     l1-k l1-b l1-s l3-k l3-b l3-s l5-k l5-b l5-s
+#   -n      the flag's name for the flags column, e.g. narrow-gf16
+#   -D      the -D flags that turn it on, e.g. '-DNARROW_GF16=1'
+#   -r      the revision column; default what ./revision prints: the last
+#           commit touching src/, plus a hash of any uncommitted changes
+#
+# Run inside `nix develop`. One row per (isa, op), with no header:
+#
+#   flags  revision  isa  level  op  space  time
+#
+# flags is "kernel=KERNEL", or "kernel=KERNEL, NAME" with -n. Rows are printed
+# only when both binaries verified their signature on both ISAs; otherwise
+# nothing is printed and the exit status is 1.
+#
+# Follows pqsca's scripts/measure, which explains these choices at length.
+#
+# space, in bytes, is the operation's peak stack plus static, where
+#   stack   is what stack.elf reports about itself: it sprays a pattern
+#           before the operation and reads back how far it was overwritten.
+#   static  is data+bss of stack.elf less that of baseline.elf, the same image
+#           with no cryptography, so the machine's own reservations (mps2's
+#           4 KiB heap and RAM vector table) do not count.
+#
+# time is instructions retired. Every run is under -icount 0, which advances
+# the guest clock one nanosecond per instruction, so a reading is deterministic
+# and does not depend on the host. speed.elf reports hal_get_time() deltas in
+# the machine's own tick, converted here:
+#   arm    SysTick at 25 MHz, so 40 ns, i.e. 40 instructions, per tick.
+#   riscv  the cycle CSR, which under -icount counts instructions: x1.
+set -eu
+
+usage() {
+  echo "usage: measure [-n NAME] [-D DEFS] [-r REV] KERNEL SET" >&2
+  exit 2
+}
+
+name=
+defs=
+rev=
+while getopts n:D:r: opt; do
+  case $opt in
+  n) name=$OPTARG ;;
+  D) defs=$OPTARG ;;
+  r) rev=$OPTARG ;;
+  *) usage ;;
+  esac
+done
+shift $((OPTIND - 1))
+[ $# -eq 2 ] || usage
+kernel=$1
+set=$2
+
+cd "$(dirname "$0")"
+
+[ -n "$rev" ] || rev=$(./revision)
+
+flags="kernel=$kernel"
+[ -z "$name" ] || flags="$flags, $name"
+
+# Long enough for the largest set on the slowest machine.
+RUN_TIMEOUT=1800
+
+# data+bss of an ELF, from the Berkeley columns of `size`.
+static_bytes() {
+  "$1" "$2" | awk 'NR == 2 { print $2 + $3 }'
+}
+
+# The value printed on the line after "<op> <label>", for each op in order.
+readings() {
+  awk -v label="$2" '
+    found { print op "\t" $1; found = 0 }
+    $0 ~ "^(keypair|sign|verify) " label { op = $1; found = 1 }
+  ' "$1"
+}
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+for isa in arm riscv; do
+  case $isa in
+  arm) size=arm-none-eabi-size tick=40 ;;
+  riscv) size=riscv32-esp-elf-size tick=1 ;;
+  esac
+
+  # NTESTS=1: the run is deterministic, so one repetition is the median.
+  if ! make -s ISA="$isa" KERNEL="$kernel" SET="$set" DEFS="$defs" NTESTS=1 \
+    baseline stack speed >"$tmp/make.log" 2>&1; then
+    cat "$tmp/make.log" >&2
+    echo "measure: $flags $set: build failed on $isa" >&2
+    exit 1
+  fi
+
+  variant=$(make -s ISA="$isa" KERNEL="$kernel" SET="$set" DEFS="$defs" print-snova-build)
+  for bin in stack speed; do
+    timeout "$RUN_TIMEOUT" ./emulate "$isa" "$variant/$bin.elf" -icount 0 \
+      >"$tmp/$isa-$bin.out" 2>&1 || true
+    if ! grep -q '^OK signature verification' "$tmp/$isa-$bin.out"; then
+      cat "$tmp/$isa-$bin.out" >&2
+      echo "measure: $flags $set: $bin did not verify on $isa" >&2
+      exit 1
+    fi
+  done
+
+  static=$(($(static_bytes "$size" "$variant/stack.elf") - $(static_bytes "$size" "build/$isa/baseline.elf")))
+
+  readings "$tmp/$isa-stack.out" 'stack usage:' >"$tmp/$isa-stack.tsv"
+  readings "$tmp/$isa-speed.out" 'cycles' >"$tmp/$isa-speed.tsv"
+
+  for op in keypair sign verify; do
+    stack=$(awk -v op=$op '$1 == op { print $2 }' "$tmp/$isa-stack.tsv")
+    ticks=$(awk -v op=$op '$1 == op { print $2 }' "$tmp/$isa-speed.tsv")
+    if [ -z "$stack" ] || [ -z "$ticks" ]; then
+      echo "measure: $flags $set: no $op reading on $isa" >&2
+      exit 1
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$flags" "$rev" "$isa" "$set" "$op" \
+      $((stack + static)) $((ticks * tick)) >>"$tmp/rows.tsv"
+  done
+done
+
+cat "$tmp/rows.tsv"

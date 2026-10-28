@@ -1,0 +1,38 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+#
+# Print the revision of src/ that a measurement is of.
+#
+#   revision
+#
+# A clean src/ is the last commit that touched it, e.g. ebdd7e2. A dirty src/
+# is that commit plus a short hash of what differs from it, e.g.
+# ebdd7e2+3f9a1c20: the diff against HEAD and every untracked file, by name and
+# content. Two different edits therefore get two different revisions, and
+# collect.sh, which keys its parts directory on this, never reuses the rows of
+# one edit for another.
+#
+# src/build/ is left out. It is src/Makefile's own output, and `make clean`
+# removes it.
+set -eu
+
+cd "$(dirname "$0")/.."
+
+rev=$(git log -1 --format=%h -- src)
+untracked=$(git ls-files --others --exclude-standard -- src ':!src/build/')
+
+if git diff --quiet HEAD -- src && [ -z "$untracked" ]; then
+  echo "$rev"
+  exit 0
+fi
+
+hash=$(
+  {
+    git diff --binary HEAD -- src
+    [ -z "$untracked" ] || echo "$untracked" | while IFS= read -r f; do
+      printf '%s\n' "$f"
+      cat "$f"
+    done
+  } | git hash-object --stdin | cut -c1-8
+)
+echo "$rev+$hash"
