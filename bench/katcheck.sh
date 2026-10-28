@@ -71,6 +71,9 @@ trap 'rm -rf "$work"' EXIT
 kat() {
   rm -rf "$1"
   cp -R "$root/src" "$1"
+  # An in-place make in src/ leaves build/ and KAT files behind, and the copied
+  # objects look up to date, so make would reuse a binary built for other flags.
+  make -C "$1" clean >/dev/null
   opt=$(echo "$2" | tr '[:lower:]' '[:upper:]')
   if ! make -C "$1" OPT="$opt" P="$3 $4" kat >"$1/make.log" 2>&1; then
     echo "katcheck: build or KAT run failed in $1" >&2
