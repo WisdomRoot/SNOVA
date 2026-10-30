@@ -204,6 +204,12 @@ typedef uint8_t skx_gf_t;
 typedef uint16_t skx_gf_t;
 #endif
 
+// STREAM_PRNG squeezes each XOF output into the tail of its destination and
+// widens it in place, instead of going through a separate byte buffer.
+#ifndef STREAM_PRNG
+#define STREAM_PRNG 0
+#endif
+
 typedef struct {
 #if SNOVA_OPT == 5
 	uint8_t _data[BYTES_SK];

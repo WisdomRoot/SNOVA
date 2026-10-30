@@ -9,3 +9,4 @@
 |
 pk-expand-shake|-DAESCTR
 narrow-gf16|-DNARROW_GF16=1
+stream-prng|-DSTREAM_PRNG=1

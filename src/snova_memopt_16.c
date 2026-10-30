@@ -39,6 +39,23 @@
 #define T12_PUT(i, val) (T12[i] = (val))
 #endif
 
+#if STREAM_PRNG
+// The l2 XOF bytes land in the low bytes of the uint16 row and are widened from the top down.
+#define PK_DECL(x, b) \
+	uint16_t x[SNOVA_l2]; \
+	uint8_t *b = (uint8_t *)x
+#define PK_WIDEN(x, b) \
+	for (int i1 = SNOVA_l2 - 1; i1 >= 0; i1--) { x[i1] = gf16_expand(b[i1]); }
+// num nibbles from the BYTES_GF(num) bytes at the tail of gf.
+#define GF_TAIL(gf, num) ((gf) + (num) - BYTES_GF(num))
+#else
+#define PK_DECL(x, b) \
+	uint8_t b[SNOVA_l2] = {0}; \
+	uint16_t x[SNOVA_l2]
+#define PK_WIDEN(x, b) \
+	for (int i1 = 0; i1 < SNOVA_l2; i1++) { x[i1] = gf16_expand(b[i1]); }
+#endif
+
 /**
  * Utilities
  */
@@ -86,7 +103,11 @@ static inline void hash_combined(uint8_t *hash_out, const uint8_t *m, size_t mle
  */
 static inline void expand_T12(uint8_t *T12, const uint8_t *seed) {
 	uint8_t T12coef[SNOVA_o * SNOVA_v * SNOVA_l];
+#if STREAM_PRNG
+	uint8_t *sk_data = GF_TAIL(T12coef, SNOVA_o * SNOVA_v * SNOVA_l);
+#else
 	uint8_t sk_data[(SNOVA_o * SNOVA_v * SNOVA_l + 1) / 2];
+#endif
 	uint16_t sum;
 
 	shake256(sk_data, (SNOVA_o * SNOVA_v * SNOVA_l + 1) / 2, seed, SEED_LENGTH_PRIVATE);
@@ -102,7 +123,9 @@ static inline void expand_T12(uint8_t *T12, const uint8_t *seed) {
 		}
 	}
 
+#if !STREAM_PRNG
 	SNOVA_SECURE_CLEAR(sk_data);
+#endif
 	SNOVA_SECURE_CLEAR(T12coef);
 	SNOVA_SECURE_CLEARI(sum);
 }
@@ -143,12 +166,9 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 		for (int nj = 0; nj < SNOVA_v; nj++) {
 			memset(F11i, 0, sizeof(F11i));
 			for (int nk = 0; nk < SNOVA_v; nk++) {
-				uint8_t P11b[SNOVA_l2] = {0};
+				PK_DECL(P11x, P11b);
 				snova_pk_expander_squeeze(P11b, SNOVA_l2, &instance);
-				uint16_t P11x[SNOVA_l2];
-				for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-					P11x[i1] = gf16_expand(P11b[i1]);
-				}
+				PK_WIDEN(P11x, P11b)
 				for (int ni = 0; ni < SNOVA_o; ni++)
 					for (int i1 = 0; i1 < SNOVA_l; i1++)
 						for (int j1 = 0; j1 < SNOVA_l; j1++)
@@ -176,16 +196,13 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 		 */
 		for (int nj = 0; nj < SNOVA_v; nj++)
 			for (int ni = 0; ni < SNOVA_o; ni++) {
-				uint8_t P12b[SNOVA_l2] = {0};
+				PK_DECL(P12x, P12b);
 #if !PUB_REORDER
 				snova_pk_expander_squeeze(P12b, SNOVA_l2, &p12_instance);
 #else
 				snova_pk_expander_squeeze(P12b, SNOVA_l2, &instance);
 #endif
-				uint16_t P12x[SNOVA_l2];
-				for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-					P12x[i1] = gf16_expand(P12b[i1]);
-				}
+				PK_WIDEN(P12x, P12b)
 				for (int nk = 0; nk < SNOVA_o; nk++)
 					for (int i1 = 0; i1 < SNOVA_l; i1++)
 						for (int j1 = 0; j1 < SNOVA_l; j1++)
@@ -197,16 +214,13 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 
 		for (int nk = 0; nk < SNOVA_o; nk++)
 			for (int nj = 0; nj < SNOVA_v; nj++) {
-				uint8_t P21b[SNOVA_l2] = {0};
+				PK_DECL(P21x, P21b);
 #if !PUB_REORDER
 				snova_pk_expander_squeeze(P21b, SNOVA_l2, &p21_instance);
 #else
 				snova_pk_expander_squeeze(P21b, SNOVA_l2, &instance);
 #endif
-				uint16_t P21x[SNOVA_l2];
-				for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-					P21x[i1] = gf16_expand(P21b[i1]);
-				}
+				PK_WIDEN(P21x, P21b)
 				for (int ni = 0; ni < SNOVA_o; ni++)
 					for (int i1 = 0; i1 < SNOVA_l; i1++)
 						for (int k1 = 0; k1 < SNOVA_l; k1++)
@@ -267,7 +281,11 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 	uint8_t hash_in_GF16[GF16_HASH];
 
 	{
+#if STREAM_PRNG
+		uint8_t *sign_hashb = GF_TAIL(hash_in_GF16, GF16_HASH);
+#else
 		uint8_t sign_hashb[BYTES_HASH];
+#endif
 #if HASH_PK
 		hash_combined(sign_hashb, digest, len_digest, s_pk_hash, salt);
 #else
@@ -295,7 +313,11 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 		uint8_t whipped_sig[SNOVA_l * SNOVA_v * SNOVA_lr] = {0};
 
 		{
+#if STREAM_PRNG
+			uint8_t *vinegar_in_byte = GF_TAIL(signature_in_GF, SNOVA_v * SNOVA_lr);
+#else
 			uint8_t vinegar_in_byte[NUM_GEN_SEC_BYTES];
+#endif
 			shake_t v_instance;
 
 			shake256_init(&v_instance);
@@ -309,7 +331,9 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			convert_bytes_to_GF(signature_in_GF, vinegar_in_byte, SNOVA_v * SNOVA_lr);
 
 			SNOVA_SECURE_CLEARI(v_instance);
+#if !STREAM_PRNG
 			SNOVA_SECURE_CLEAR(vinegar_in_byte);
+#endif
 		}
 
 		{
@@ -383,12 +407,9 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 					memset(F12, 0, sizeof(F12));
 
 					for (int nj = 0; nj < SNOVA_v; ++nj) {
-						uint8_t P11b[SNOVA_l2] = {0};
+						PK_DECL(P11x, P11b);
 						snova_pk_expander_squeeze(P11b, SNOVA_l2, &instance);
-						uint16_t P11x[SNOVA_l2];
-						for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-							P11x[i1] = gf16_expand(P11b[i1]);
-						}
+						PK_WIDEN(P11x, P11b)
 
 						for (int k1 = 0; k1 < SNOVA_l; k1++)
 							for (int i1 = 0; i1 < SNOVA_l; i1++)
@@ -458,16 +479,13 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			// Right
 			for (int nj = 0; nj < SNOVA_v; ++nj)
 				for (int idx = 0; idx < SNOVA_o; idx++) {
-					uint8_t P12b[SNOVA_l2] = {0};
+					PK_DECL(P12x, P12b);
 #if !PUB_REORDER
 					snova_pk_expander_squeeze(P12b, SNOVA_l2, &p12_instance);
 #else
 					snova_pk_expander_squeeze(P12b, SNOVA_l2, &instance);
 #endif
-					uint16_t P12x[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						P12x[i1] = gf16_expand(P12b[i1]);
-					}
+					PK_WIDEN(P12x, P12b)
 
 					for (int i1 = 0; i1 < SNOVA_l; i1++)
 						for (int b1 = 0; b1 < SNOVA_lr; ++b1)
@@ -484,16 +502,13 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			for (int idx = 0; idx < SNOVA_o; idx++)
 				for (int nj = 0; nj < SNOVA_v; ++nj) {
 					// Right
-					uint8_t P21b[SNOVA_l2] = {0};
+					PK_DECL(P21x, P21b);
 #if !PUB_REORDER
 					snova_pk_expander_squeeze(P21b, SNOVA_l2, &p21_instance);
 #else
 					snova_pk_expander_squeeze(P21b, SNOVA_l2, &instance);
 #endif
-					uint16_t P21x[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						P21x[i1] = gf16_expand(P21b[i1]);
-					}
+					PK_WIDEN(P21x, P21b)
 
 					for (int b1 = 0; b1 < SNOVA_l; ++b1)
 						for (int i1 = 0; i1 < SNOVA_l; i1++)
@@ -968,12 +983,9 @@ int SNOVA_NAMESPACE(verify)(const expanded_PK *pkx, const uint8_t *sig, const ui
 				// Right
 				uint16_t sum_t0[SNOVA_l * SNOVA_lr] = {0};
 				for (int nj = 0; nj < SNOVA_v; ++nj) {
-					uint8_t P11b[SNOVA_l2] = {0};
+					PK_DECL(P11x, P11b);
 					snova_pk_expander_squeeze(P11b, SNOVA_l2, &instance);
-					uint16_t P11x[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						P11x[i1] = gf16_expand(P11b[i1]);
-					}
+					PK_WIDEN(P11x, P11b)
 
 					for (int k1 = 0; k1 < SNOVA_l; k1++)
 						for (int i1 = 0; i1 < SNOVA_l; i1++)
@@ -1002,16 +1014,13 @@ int SNOVA_NAMESPACE(verify)(const expanded_PK *pkx, const uint8_t *sig, const ui
 				// Right
 				uint16_t sum_t0[SNOVA_l * SNOVA_lr] = {0};
 				for (int nj = 0; nj < SNOVA_o; ++nj) {
-					uint8_t P12b[SNOVA_l2] = {0};
+					PK_DECL(P12x, P12b);
 #if !PUB_REORDER
 					snova_pk_expander_squeeze(P12b, SNOVA_l2, &p12_instance);
 #else
 					snova_pk_expander_squeeze(P12b, SNOVA_l2, &instance);
 #endif
-					uint16_t P12x[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						P12x[i1] = gf16_expand(P12b[i1]);
-					}
+					PK_WIDEN(P12x, P12b)
 					for (int k1 = 0; k1 < SNOVA_l; k1++)
 						for (int i1 = 0; i1 < SNOVA_l; i1++)
 							for (int b1 = 0; b1 < SNOVA_lr; ++b1)
@@ -1039,16 +1048,13 @@ int SNOVA_NAMESPACE(verify)(const expanded_PK *pkx, const uint8_t *sig, const ui
 				// Right
 				uint16_t sum_t0[SNOVA_l * SNOVA_lr] = {0};
 				for (int nj = 0; nj < SNOVA_v; ++nj) {
-					uint8_t P21b[SNOVA_l2] = {0};
+					PK_DECL(P21x, P21b);
 #if !PUB_REORDER
 					snova_pk_expander_squeeze(P21b, SNOVA_l2, &p21_instance);
 #else
 					snova_pk_expander_squeeze(P21b, SNOVA_l2, &instance);
 #endif
-					uint16_t P21x[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						P21x[i1] = gf16_expand(P21b[i1]);
-					}
+					PK_WIDEN(P21x, P21b)
 
 					for (int k1 = 0; k1 < SNOVA_l; k1++)
 						for (int i1 = 0; i1 < SNOVA_l; i1++)
@@ -1148,7 +1154,11 @@ int SNOVA_NAMESPACE(verify)(const expanded_PK *pkx, const uint8_t *sig, const ui
 	 */
 	uint8_t signed_gf[GF16_HASH] = {0};
 	const uint8_t *salt = sig + BYTES_SIGNATURE - BYTES_SALT;
+#if STREAM_PRNG
+	uint8_t *signed_bytes = GF_TAIL(signed_gf, GF16_HASH);
+#else
 	uint8_t signed_bytes[BYTES_HASH];
+#endif
 #if HASH_PK
 	uint8_t pk_hash[BYTES_PK_HASH];
 	shake256(pk_hash, BYTES_PK_HASH, pk, BYTES_PK);

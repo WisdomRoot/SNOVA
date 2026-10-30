@@ -44,6 +44,11 @@
 #define T12_PUT(i, val) (T12[i] = (val))
 #endif
 
+#if STREAM_PRNG
+// num nibbles from the BYTES_GF(num) bytes at the tail of gf.
+#define GF_TAIL(gf, num) ((gf) + (num) - BYTES_GF(num))
+#endif
+
 /**
  * Utilities
  */
@@ -91,7 +96,11 @@ static inline void hash_combined(uint8_t *hash_out, const uint8_t *m, size_t mle
  */
 static inline void expand_T12(uint8_t *T12, const uint8_t *seed) {
 	uint8_t T12coef[SNOVA_o * SNOVA_v * SNOVA_l];
+#if STREAM_PRNG
+	uint8_t *sk_data = GF_TAIL(T12coef, SNOVA_o * SNOVA_v * SNOVA_l);
+#else
 	uint8_t sk_data[(SNOVA_o * SNOVA_v * SNOVA_l + 1) / 2];
+#endif
 	uint16_t sum;
 
 	shake256(sk_data, (SNOVA_o * SNOVA_v * SNOVA_l + 1) / 2, seed, SEED_LENGTH_PRIVATE);
@@ -107,7 +116,9 @@ static inline void expand_T12(uint8_t *T12, const uint8_t *seed) {
 		}
 	}
 
+#if !STREAM_PRNG
 	SNOVA_SECURE_CLEAR(sk_data);
+#endif
 	SNOVA_SECURE_CLEAR(T12coef);
 	SNOVA_SECURE_CLEARI(sum);
 }
@@ -295,7 +306,11 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 	uint8_t hash_in_GF16[GF16_HASH];
 
 	{
+#if STREAM_PRNG
+		uint8_t *sign_hashb = GF_TAIL(hash_in_GF16, GF16_HASH);
+#else
 		uint8_t sign_hashb[BYTES_HASH];
+#endif
 #if HASH_PK
 		hash_combined(sign_hashb, digest, len_digest, s_pk_hash, salt);
 #else
@@ -332,7 +347,11 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 #endif
 
 		{
+#if STREAM_PRNG
+			uint8_t *vinegar_in_byte = GF_TAIL(signature_in_GF, SNOVA_v * SNOVA_lr);
+#else
 			uint8_t vinegar_in_byte[NUM_GEN_SEC_BYTES];
+#endif
 			shake_t v_instance;
 
 			shake256_init(&v_instance);
@@ -346,7 +365,9 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			convert_bytes_to_GF(signature_in_GF, vinegar_in_byte, SNOVA_v * SNOVA_lr);
 
 			SNOVA_SECURE_CLEARI(v_instance);
+#if !STREAM_PRNG
 			SNOVA_SECURE_CLEAR(vinegar_in_byte);
+#endif
 		}
 
 		{
@@ -1176,7 +1197,11 @@ int SNOVA_NAMESPACE(verify)(const expanded_PK *pkx, const uint8_t *sig, const ui
 	 */
 	uint8_t signed_gf[GF16_HASH] = {0};
 	const uint8_t *salt = sig + BYTES_SIGNATURE - BYTES_SALT;
+#if STREAM_PRNG
+	uint8_t *signed_bytes = GF_TAIL(signed_gf, GF16_HASH);
+#else
 	uint8_t signed_bytes[BYTES_HASH];
+#endif
 #if HASH_PK
 	uint8_t pk_hash[BYTES_PK_HASH];
 	shake256(pk_hash, BYTES_PK_HASH, pk, BYTES_PK);

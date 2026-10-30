@@ -425,6 +425,23 @@ static int expand_pk(gf_t* P22, const uint8_t *pk) {
 /**
  * Expand the public key from a seed. Make symmetric
  */
+#if STREAM_PRNG && !defined(SYMMETRIC) && !PUB_REORDER
+// Expand into the tail of P_matrix and widen in place, low element first. The
+// read head stays ahead of the write head while the stream starts at or past
+// NUM_GEN_PUB_BYTES.
+_Static_assert(NUM_GEN_PUB_GF % 2 == 0, "stream-prng assumes whole stream bytes");
+_Static_assert(NUM_PUB_GF >= 2 * NUM_GEN_PUB_BYTES, "P_matrix lacks headroom for in-place expansion");
+void expand_public(gf_t* P_matrix, const uint8_t *seed) {
+	uint8_t *stream = P_matrix + NUM_PUB_GF - NUM_GEN_PUB_BYTES;
+
+	snova_pk_expand(stream, NUM_GEN_PUB_BYTES, seed, SEED_LENGTH_PUBLIC);
+	for (size_t idx = 0; idx < NUM_GEN_PUB_BYTES; idx++) {
+		uint8_t byte = stream[idx];
+		P_matrix[2 * idx] = byte & 0xf;
+		P_matrix[2 * idx + 1] = byte >> 4;
+	}
+}
+#else
 void expand_public(gf_t* P_matrix, const uint8_t *seed) {
 	uint8_t pk_bytes[NUM_GEN_PUB_BYTES];
 
@@ -521,6 +538,7 @@ void expand_public(gf_t* P_matrix, const uint8_t *seed) {
 	convert_bytes_to_GF(P_matrix, (uint8_t *)pk_bytes, NUM_GEN_PUB_GF);
 #endif
 }
+#endif
 
 static void hash_combined(uint8_t *hash_out, const uint8_t *digest, const size_t len_digest, const uint8_t *pk_seed,
                           const uint8_t *salt) {
