@@ -192,6 +192,38 @@
 
 #define i_prime(mi, alpha) ((alpha + mi) % SNOVA_m1)
 
+// NARROW_GF16 stores GF(16) elements in less space. In the expanded keys of ref
+// and opt these members hold 4-bit values, so they become uint8. mem and tinymem
+// have no expanded keys and pack their T12 instead.
+#ifndef NARROW_GF16
+#define NARROW_GF16 0
+#endif
+#if NARROW_GF16
+typedef uint8_t skx_gf_t;
+#else
+typedef uint16_t skx_gf_t;
+#endif
+
+// STREAM_PRNG squeezes each XOF output into the tail of its destination and
+// widens it in place, instead of going through a separate byte buffer.
+#ifndef STREAM_PRNG
+#define STREAM_PRNG 0
+#endif
+
+// EXPAND_BITSLICE computes the public map's products on bit-sliced T12: F11, P12
+// and P22 in keypair, F12 and F21 in sign. A GF(16) multiply is four masked XORs
+// over planes, with field polynomial t^4 + t + 1.
+#ifndef EXPAND_BITSLICE
+#define EXPAND_BITSLICE 0
+#endif
+
+// SIGN_BITSLICE runs sign's whip, sum_t0, sum_t1, whipped_F12, whipped_F21 and
+// Gauss elimination on bit-sliced lanes. Scalars enter only through masks, and
+// each kernel keeps its stock pivot order.
+#ifndef SIGN_BITSLICE
+#define SIGN_BITSLICE 0
+#endif
+
 typedef struct {
 #if SNOVA_OPT == 5
 	uint8_t _data[BYTES_SK];
@@ -202,12 +234,12 @@ typedef struct {
 #if SNOVA_l == 2 && SNOVA_OPT != 0
 	uint8_t P11[SNOVA_m1 * SNOVA_v * (SNOVA_v + 1) * SNOVA_l2];
 #else
-	uint16_t P11[SNOVA_m1 * SNOVA_v * SNOVA_v * SNOVA_l2];
+	skx_gf_t P11[SNOVA_m1 * SNOVA_v * SNOVA_v * SNOVA_l2];
 #endif
 	uint16_t T12[SNOVA_o * SNOVA_v * SNOVA_l2];
-	uint16_t F21[SNOVA_m1 * SNOVA_o * SNOVA_v * SNOVA_l2];
+	skx_gf_t F21[SNOVA_m1 * SNOVA_o * SNOVA_v * SNOVA_l2];
 #if !defined(SYMMETRIC) || SNOVA_OPT == 0
-	uint16_t F12[SNOVA_m1 * SNOVA_o * SNOVA_v * SNOVA_l2];
+	skx_gf_t F12[SNOVA_m1 * SNOVA_o * SNOVA_v * SNOVA_l2];
 #endif
 #if !FIXED_ABQ || SNOVA_OPT == 0
 	uint16_t Am[SNOVA_o * SNOVA_alpha * SNOVA_r2];
@@ -243,7 +275,7 @@ typedef struct {
 #if SNOVA_l == 2 && SNOVA_OPT != 0
 	uint8_t P[SNOVA_m1 * SNOVA_n * (SNOVA_n + 1) * SNOVA_l2];
 #else
-	uint16_t P[SNOVA_m1 * SNOVA_n * SNOVA_n * SNOVA_l2];
+	skx_gf_t P[SNOVA_m1 * SNOVA_n * SNOVA_n * SNOVA_l2];
 #endif
 #if !FIXED_ABQ || SNOVA_OPT == 0
 	uint8_t Am[SNOVA_o * SNOVA_alpha * SNOVA_r2];

@@ -120,7 +120,7 @@ SNOVA_BUILD := $(BUILD)/snova/$(KERNEL)-$(SET)-$(VARIANT)
 # aes.c is only reached under AESCTR, and --gc-sections drops it otherwise.
 SNOVA_SRC := $(KERNEL_SRC_$(KERNEL)) sign.c aes.c
 SNOVA_OBJ := $(addprefix $(SNOVA_BUILD)/,$(SNOVA_SRC:.c=.o))
-SNOVA_HDR := $(wildcard ../src/*.h)
+SNOVA_HDR := $(wildcard ../src/*.h ../src/*.inc)
 
 # Upstream's own warnings (src/Makefile), without -Werror, which upstream does
 # not use either.

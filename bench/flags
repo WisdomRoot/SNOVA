@@ -1,0 +1,14 @@
+# The flag sets collect.sh measures and check.sh checks, one per line as
+# NAME|DEFS:
+#
+#   NAME  the flag's name in the flags column, e.g. narrow-gf16
+#   DEFS  the -D flags that turn it on, e.g. -DNARROW_GF16=1
+#
+# The first line, with no name and no DEFS, is stock. Lines starting with #
+# are comments.
+|
+pk-expand-shake|-DAESCTR
+narrow-gf16|-DNARROW_GF16=1
+stream-prng|-DSTREAM_PRNG=1
+expand-bitslice|-DEXPAND_BITSLICE=1
+sign-bitslice|-DSIGN_BITSLICE=1

@@ -69,7 +69,7 @@ static inline void gf_mat_mul_add(gf_t* a, const gf_t* b, const gf_t* c) {
 		}
 }
 
-static inline void gf_mat_mul_add16(gf_t* a, const uint16_t *b, const gf_t* c) {
+static inline void gf_mat_mul_add16(gf_t* a, const skx_gf_t *b, const gf_t* c) {
 	for (int i1 = 0; i1 < SNOVA_l; i1++)
 		for (int j1 = 0; j1 < SNOVA_r; j1++) {
 			gf_t sum = 0;
@@ -425,6 +425,23 @@ static int expand_pk(gf_t* P22, const uint8_t *pk) {
 /**
  * Expand the public key from a seed. Make symmetric
  */
+#if STREAM_PRNG && !defined(SYMMETRIC) && !PUB_REORDER
+// Expand into the tail of P_matrix and widen in place, low element first. The
+// read head stays ahead of the write head while the stream starts at or past
+// NUM_GEN_PUB_BYTES.
+_Static_assert(NUM_GEN_PUB_GF % 2 == 0, "stream-prng assumes whole stream bytes");
+_Static_assert(NUM_PUB_GF >= 2 * NUM_GEN_PUB_BYTES, "P_matrix lacks headroom for in-place expansion");
+void expand_public(gf_t* P_matrix, const uint8_t *seed) {
+	uint8_t *stream = P_matrix + NUM_PUB_GF - NUM_GEN_PUB_BYTES;
+
+	snova_pk_expand(stream, NUM_GEN_PUB_BYTES, seed, SEED_LENGTH_PUBLIC);
+	for (size_t idx = 0; idx < NUM_GEN_PUB_BYTES; idx++) {
+		uint8_t byte = stream[idx];
+		P_matrix[2 * idx] = byte & 0xf;
+		P_matrix[2 * idx + 1] = byte >> 4;
+	}
+}
+#else
 void expand_public(gf_t* P_matrix, const uint8_t *seed) {
 	uint8_t pk_bytes[NUM_GEN_PUB_BYTES];
 
@@ -521,6 +538,7 @@ void expand_public(gf_t* P_matrix, const uint8_t *seed) {
 	convert_bytes_to_GF(P_matrix, (uint8_t *)pk_bytes, NUM_GEN_PUB_GF);
 #endif
 }
+#endif
 
 static void hash_combined(uint8_t *hash_out, const uint8_t *digest, const size_t len_digest, const uint8_t *pk_seed,
                           const uint8_t *salt) {
@@ -693,6 +711,14 @@ static void gen_fixed_ABQ(const char *abq_seed) {
 }
 #endif
 
+#if EXPAND_BITSLICE && SIGN_BITSLICE
+#error "one flag at a time"
+#endif
+#if EXPAND_BITSLICE || SIGN_BITSLICE
+#include "snova_ref_bs.inc"
+#endif
+
+#if !EXPAND_BITSLICE
 /**
  * Reference version of genkey.
  */
@@ -792,6 +818,8 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 	return 0;
 }
 
+#endif
+
 /**
  * Dummy sk_expand.
  */
@@ -802,6 +830,7 @@ int SNOVA_NAMESPACE(sk_expand)(expanded_SK* skx, const uint8_t *sk) {
 	return 0;
 }
 
+#if !SIGN_BITSLICE
 /**
  * Reference version of Sign. Deterministic using the salt provided
  */
@@ -827,6 +856,12 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK* skx, uint8_t *sig, const uint8_t *d
 	gf_t* P12 = P_matrix + SNOVA_m1 * SNOVA_v * SNOVA_v * SNOVA_l2;
 	gf_t* P21 = P_matrix + SNOVA_m1 * SNOVA_v * SNOVA_n * SNOVA_l2;
 
+#if EXPAND_BITSLICE
+	gf_t F21[SNOVA_m1 * SNOVA_o * SNOVA_v * SNOVA_l2];
+	gf_t F12[SNOVA_m1 * SNOVA_v * SNOVA_o * SNOVA_l2];
+	ref_bs_F12F21(F12, F21, T12, P11, P12, P21);
+
+#else
 	gf_t F21[SNOVA_m1 * SNOVA_o * SNOVA_v * SNOVA_l2] = {0};
 
 	for (int i1 = 0; i1 < SNOVA_m1; i1++) {
@@ -863,6 +898,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK* skx, uint8_t *sig, const uint8_t *d
 		gf_set_add(&F21[i1], P21[i1]);
 	}
 
+#endif
 	// Generate ABQ
 	gf_t Am[SNOVA_o * SNOVA_alpha * SNOVA_r2];
 	gf_t Bm[SNOVA_o * SNOVA_alpha * SNOVA_lr];
@@ -1191,6 +1227,8 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK* skx, uint8_t *sig, const uint8_t *d
 
 	return 0;
 }
+
+#endif
 
 /**
  * PK expansion.

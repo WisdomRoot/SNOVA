@@ -338,6 +338,23 @@ static inline void compress_gf(uint8_t *byte_array, const uint8_t *gf_array, siz
 /**
  * Expand the public key from a seed.
  */
+#if STREAM_PRNG && !PUB_REORDER
+// Expand into the tail of P_matrix and widen in place, low element first. The
+// read head stays ahead of the write head while the stream starts at or past
+// NUM_GEN_PUB_BYTES.
+_Static_assert(NUM_GEN_PUB_GF % 2 == 0, "stream-prng assumes whole stream bytes");
+_Static_assert(NUM_PUB_GF >= 2 * NUM_GEN_PUB_BYTES, "P_matrix lacks headroom for in-place expansion");
+static inline void expand_public(uint8_t *P_matrix, const uint8_t *seed) {
+	uint8_t *stream = P_matrix + NUM_PUB_GF - NUM_GEN_PUB_BYTES;
+
+	snova_pk_expand(stream, NUM_GEN_PUB_BYTES, seed, SEED_LENGTH_PUBLIC);
+	for (size_t idx = 0; idx < NUM_GEN_PUB_BYTES; idx++) {
+		uint8_t byte = stream[idx];
+		P_matrix[2 * idx] = byte & 0xf;
+		P_matrix[2 * idx + 1] = byte >> 4;
+	}
+}
+#else
 static inline void expand_public(uint8_t *P_matrix, const uint8_t *seed) {
 	uint8_t pk_bytes[NUM_GEN_PUB_BYTES];
 
@@ -381,6 +398,7 @@ static inline void expand_public(uint8_t *P_matrix, const uint8_t *seed) {
 	convert_bytes_to_GF(P_matrix, (uint8_t *)pk_bytes, NUM_GEN_PUB_GF);
 #endif
 }
+#endif
 
 static inline void hash_combined(uint8_t *hash_out, const uint8_t *m, size_t mlen, const uint8_t *pk_seed,
                                  const uint8_t *salt) {
@@ -547,6 +565,9 @@ static inline void gen_ABQ(uint8_t *A, uint8_t *Am, uint8_t *Bm, uint8_t *Q1m, u
 }
 #endif
 
+#if EXPAND_BITSLICE
+#include "snova_opt_bs_expand.inc"
+#else
 /**
  * Optimized version of genkey.
  */
@@ -820,6 +841,11 @@ int SNOVA_NAMESPACE(sk_expand)(expanded_SK *skx, const uint8_t *sk) {
 	return 0;
 }
 
+#endif
+
+#if SIGN_BITSLICE
+#include "snova_opt_bs_sign.inc"
+#else
 /**
  * Optimized version of Sign. Deterministic using the salt provided
  */
@@ -1408,6 +1434,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx, uint8_t *sig, const uint8_t *d
 
 	return 0;
 }
+#endif
 
 #undef Am
 #undef Bm

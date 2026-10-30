@@ -26,6 +26,97 @@
 #define SNOVA_olr (SNOVA_o * SNOVA_lr + 1)
 
 /**
+ * NARROW_GF16 (snova.h) stores T12 two elements per byte. expand_T12 writes it
+ * in index order, which T12_PUT relies on: an even index clears the byte.
+ *
+ * EXPAND_BITSLICE (snova.h) holds T12, F12 and P22 sliced over o * l lanes.
+ *
+ * SIGN_BITSLICE (snova.h) replaces sign with tinymem's sliced sign, on memopt's buffers.
+ *
+ * These and STREAM_PRNG are only tested one at a time.
+ */
+#if NARROW_GF16 + STREAM_PRNG + SIGN_BITSLICE + EXPAND_BITSLICE > 1
+#error "one flag at a time"
+#endif
+#if EXPAND_BITSLICE && PUB_REORDER
+#error "EXPAND_BITSLICE follows the PUB_REORDER=0 stream order"
+#endif
+
+#if EXPAND_BITSLICE
+#define XL (SNOVA_o * SNOVA_l)
+_Static_assert(XL <= 32, "expand-bitslice packs o * l lanes into one word");
+
+static inline uint8_t xs_get(const uint32_t *x, int c) {
+	return (uint8_t)(((x[0] >> c) & 1) | (((x[1] >> c) & 1) << 1) | (((x[2] >> c) & 1) << 2) | (((x[3] >> c) & 1) << 3));
+}
+
+static inline void xs_xor(uint32_t *x, int c, uint8_t v) {
+	x[0] ^= (uint32_t)(v & 1) << c;
+	x[1] ^= (uint32_t)((v >> 1) & 1) << c;
+	x[2] ^= (uint32_t)((v >> 2) & 1) << c;
+	x[3] ^= (uint32_t)((v >> 3) & 1) << c;
+}
+
+// acc ^= c * x, lane by lane.
+static inline void xs_mul_acc(uint32_t *acc, const uint32_t *x, uint8_t c) {
+	uint32_t a0 = x[0], a1 = x[1], a2 = x[2], a3 = x[3], t;
+	uint32_t m = 0u - (uint32_t)(c & 1);
+	acc[0] ^= m & a0;
+	acc[1] ^= m & a1;
+	acc[2] ^= m & a2;
+	acc[3] ^= m & a3;
+	for (int k = 1; k < 4; k++) {
+		t = a3;
+		a3 = a2;
+		a2 = a1;
+		a1 = a0 ^ t;
+		a0 = t;
+		m = 0u - (uint32_t)((c >> k) & 1);
+		acc[0] ^= m & a0;
+		acc[1] ^= m & a1;
+		acc[2] ^= m & a2;
+		acc[3] ^= m & a3;
+	}
+}
+
+// Row (a * l + i1), lane (b * l + j1) holds T12[(a * o + b) * l2 + i1 * l + j1].
+#define T12_DECL(name) uint32_t name[SNOVA_v * SNOVA_l][4]
+typedef uint32_t (*t12_arg_t)[4];
+#define T12_GET(i)                                                                     \
+	xs_get(T12[((i) / SNOVA_l2 / SNOVA_o) * SNOVA_l + ((i) % SNOVA_l2) / SNOVA_l], \
+	       (((i) / SNOVA_l2) % SNOVA_o) * SNOVA_l + (i) % SNOVA_l)
+#else
+#if NARROW_GF16
+#define T12_BYTES ((SNOVA_o * SNOVA_v * SNOVA_l2 + 1) / 2)
+#define T12_GET(i) ((((i) & 1) ? T12[(i) / 2] >> 4 : T12[(i) / 2]) & 0xf)
+#define T12_PUT(i, val) do { if ((i) & 1) T12[(i) / 2] |= (uint8_t)((val) << 4); else T12[(i) / 2] = (uint8_t)(val); } while (0)
+#else
+#define T12_BYTES (SNOVA_o * SNOVA_v * SNOVA_l2)
+#define T12_GET(i) (T12[i])
+#define T12_PUT(i, val) (T12[i] = (val))
+#endif
+#define T12_DECL(name) uint8_t name[T12_BYTES]
+typedef uint8_t *t12_arg_t;
+#endif
+
+#if STREAM_PRNG
+// The l2 XOF bytes land in the low bytes of the uint16 row and are widened from the top down.
+#define PK_DECL(x, b) \
+	uint16_t x[SNOVA_l2]; \
+	uint8_t *b = (uint8_t *)x
+#define PK_WIDEN(x, b) \
+	for (int i1 = SNOVA_l2 - 1; i1 >= 0; i1--) { x[i1] = gf16_expand(b[i1]); }
+// num nibbles from the BYTES_GF(num) bytes at the tail of gf.
+#define GF_TAIL(gf, num) ((gf) + (num) - BYTES_GF(num))
+#else
+#define PK_DECL(x, b) \
+	uint8_t b[SNOVA_l2] = {0}; \
+	uint16_t x[SNOVA_l2]
+#define PK_WIDEN(x, b) \
+	for (int i1 = 0; i1 < SNOVA_l2; i1++) { x[i1] = gf16_expand(b[i1]); }
+#endif
+
+/**
  * Utilities
  */
 #define gf16_expand(a) (((a) | ((a) << 3) | ((a) << 6) | ((a) << 9)) & 0x1111)
@@ -70,29 +161,139 @@ static inline void hash_combined(uint8_t *hash_out, const uint8_t *m, size_t mle
 /**
  * Expand T12 matrix and coefficients. Shared by genkey and sign
  */
-static inline void expand_T12(uint8_t *T12, const uint8_t *seed) {
+static inline void expand_T12(t12_arg_t T12, const uint8_t *seed) {
 	uint8_t T12coef[SNOVA_o * SNOVA_v * SNOVA_l];
+#if STREAM_PRNG
+	uint8_t *sk_data = GF_TAIL(T12coef, SNOVA_o * SNOVA_v * SNOVA_l);
+#else
 	uint8_t sk_data[(SNOVA_o * SNOVA_v * SNOVA_l + 1) / 2];
+#endif
 	uint16_t sum;
 
 	shake256(sk_data, (SNOVA_o * SNOVA_v * SNOVA_l + 1) / 2, seed, SEED_LENGTH_PRIVATE);
 	convert_bytes_to_GF(T12coef, sk_data, SNOVA_o * SNOVA_v * SNOVA_l);
 
+#if EXPAND_BITSLICE
+	memset(T12, 0, sizeof(uint32_t) * SNOVA_v * SNOVA_l * 4);
+#endif
 	for (size_t i1 = 0; i1 < SNOVA_o * SNOVA_v; i1++) {
 		for (int j1 = 0; j1 < SNOVA_l2; j1++) {
 			sum = 0;
 			for (int k1 = 0; k1 < SNOVA_l; k1++) {
 				sum ^= T12coef[i1 * SNOVA_l + k1] * gf_Sx[k1 * SNOVA_l2 + j1];
 			}
-			T12[i1 * SNOVA_l2 + j1] = gf16_compress(sum);
+#if EXPAND_BITSLICE
+			xs_xor(T12[(i1 / SNOVA_o) * SNOVA_l + j1 / SNOVA_l], (int)((i1 % SNOVA_o) * SNOVA_l + j1 % SNOVA_l), (uint8_t)gf16_compress(sum));
+#else
+			T12_PUT(i1 * SNOVA_l2 + j1, gf16_compress(sum));
+#endif
 		}
 	}
 
+#if !STREAM_PRNG
 	SNOVA_SECURE_CLEAR(sk_data);
+#endif
 	SNOVA_SECURE_CLEAR(T12coef);
 	SNOVA_SECURE_CLEARI(sum);
 }
 
+#if EXPAND_BITSLICE
+/**
+ * genkey with sliced F11 and P22, streaming P per mi as the stock one does.
+ */
+int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
+	T12_DECL(T12);
+	expand_T12(T12, seed + SEED_LENGTH_PUBLIC);
+
+	snova_pk_expander_t instance;
+	snova_pk_expander_init(&instance, seed, SEED_LENGTH_PUBLIC);
+
+	snova_pk_expander_t p12_instance;
+	snova_pk_expander_init(&p12_instance, seed, SEED_LENGTH_PUBLIC);
+	snova_pk_expander_goto(&p12_instance, SNOVA_m1 * SNOVA_v * SNOVA_v * SNOVA_l2);
+
+	snova_pk_expander_t p21_instance;
+	snova_pk_expander_init(&p21_instance, seed, SEED_LENGTH_PUBLIC);
+	snova_pk_expander_goto(&p21_instance, SNOVA_m1 * SNOVA_v * SNOVA_n * SNOVA_l2);
+
+	int idx = 0;
+	uint8_t *pp22 = pk + SEED_LENGTH_PUBLIC;
+	// F row k1, lane (ni, j1): F11[ni, k1, j1] plus P12[nj, ni, k1, j1]
+	uint32_t F[SNOVA_l][4];
+
+	for (int mi = 0; mi < SNOVA_m1; mi++) {
+		// P22 row (nk, i1), lane (ni, j1)
+		uint32_t P22[SNOVA_o * SNOVA_l][4];
+		memset(P22, 0, sizeof(P22));
+
+		for (int nj = 0; nj < SNOVA_v; nj++) {
+			memset(F, 0, sizeof(F));
+			for (int nk = 0; nk < SNOVA_v; nk++) {
+				uint8_t P11b[SNOVA_l2];
+				snova_pk_expander_squeeze(P11b, SNOVA_l2, &instance);
+				for (int i1 = 0; i1 < SNOVA_l; i1++)
+					for (int k1 = 0; k1 < SNOVA_l; k1++)
+						xs_mul_acc(F[i1], T12[nk * SNOVA_l + k1], P11b[i1 * SNOVA_l + k1]);
+			}
+
+			for (int ni = 0; ni < SNOVA_o; ni++) {
+				uint8_t P12b[SNOVA_l2];
+				snova_pk_expander_squeeze(P12b, SNOVA_l2, &p12_instance);
+				for (int k1 = 0; k1 < SNOVA_l; k1++)
+					for (int j1 = 0; j1 < SNOVA_l; j1++)
+						xs_xor(F[k1], ni * SNOVA_l + j1, P12b[k1 * SNOVA_l + j1]);
+			}
+
+			// P22[nk, ni, i1, j1] ^= T12[nj, nk, i1, k1] * F[k1, (ni, j1)]
+			for (int nk = 0; nk < SNOVA_o; nk++)
+				for (int i1 = 0; i1 < SNOVA_l; i1++)
+					for (int k1 = 0; k1 < SNOVA_l; k1++)
+						xs_mul_acc(P22[nk * SNOVA_l + i1], F[k1], xs_get(T12[nj * SNOVA_l + i1], nk * SNOVA_l + k1));
+		}
+
+		// P22[nk, ni, i1, j1] ^= P21[nk, nj, i1, k1] * T12[nj, ni, k1, j1]
+		for (int nk = 0; nk < SNOVA_o; nk++)
+			for (int nj = 0; nj < SNOVA_v; nj++) {
+				uint8_t P21b[SNOVA_l2];
+				snova_pk_expander_squeeze(P21b, SNOVA_l2, &p21_instance);
+				for (int i1 = 0; i1 < SNOVA_l; i1++)
+					for (int k1 = 0; k1 < SNOVA_l; k1++)
+						xs_mul_acc(P22[nk * SNOVA_l + i1], T12[nj * SNOVA_l + k1], P21b[i1 * SNOVA_l + k1]);
+			}
+
+		for (int nk = 0; nk < SNOVA_o; nk++)
+			for (int ni = 0; ni < SNOVA_o; ni++)
+				for (int i1 = 0; i1 < SNOVA_l; i1++)
+					for (int j1 = 0; j1 < SNOVA_l; j1++) {
+						uint8_t val = xs_get(P22[nk * SNOVA_l + i1], ni * SNOVA_l + j1);
+						if (idx & 1) {
+							pp22[idx / 2] ^= (uint8_t)(val << 4);
+						} else {
+							pp22[idx / 2] = val;
+						}
+						idx++;
+					}
+
+		SNOVA_SECURE_CLEAR(P22);
+	}
+
+	snova_pk_expander_free(&instance);
+	snova_pk_expander_free(&p12_instance);
+	snova_pk_expander_free(&p21_instance);
+
+	memcpy(pk, seed, SEED_LENGTH_PUBLIC);
+	memcpy(sk, seed, SEED_LENGTH_PUBLIC + SEED_LENGTH_PRIVATE);
+
+#if HASH_PK
+	shake256(sk + SEED_LENGTH_PUBLIC + SEED_LENGTH_PRIVATE, BYTES_PK_HASH, pk, BYTES_PK);
+#endif
+
+	SNOVA_SECURE_CLEAR(T12);
+	SNOVA_SECURE_CLEAR(F);
+
+	return 0;
+}
+#else
 /**
  * Optimized version of genkey.
  */
@@ -100,7 +301,7 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 	/**
 	 * Gen T12 matrix
 	 */
-	uint8_t T12[SNOVA_o * SNOVA_v * SNOVA_l2];
+	T12_DECL(T12);
 	expand_T12(T12, seed + SEED_LENGTH_PUBLIC);
 
 	/**
@@ -129,18 +330,15 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 		for (int nj = 0; nj < SNOVA_v; nj++) {
 			memset(F11i, 0, sizeof(F11i));
 			for (int nk = 0; nk < SNOVA_v; nk++) {
-				uint8_t P11b[SNOVA_l2] = {0};
+				PK_DECL(P11x, P11b);
 				snova_pk_expander_squeeze(P11b, SNOVA_l2, &instance);
-				uint16_t P11x[SNOVA_l2];
-				for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-					P11x[i1] = gf16_expand(P11b[i1]);
-				}
+				PK_WIDEN(P11x, P11b)
 				for (int ni = 0; ni < SNOVA_o; ni++)
 					for (int i1 = 0; i1 < SNOVA_l; i1++)
 						for (int j1 = 0; j1 < SNOVA_l; j1++)
 							for (int k1 = 0; k1 < SNOVA_l; k1++)
 								F11i[ni * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-								    T12[(nk * SNOVA_o + ni) * SNOVA_l2 + k1 * SNOVA_l + j1] * P11x[i1 * SNOVA_l + k1];
+								    T12_GET((nk * SNOVA_o + ni) * SNOVA_l2 + k1 * SNOVA_l + j1) * P11x[i1 * SNOVA_l + k1];
 			}
 
 			for (int i1 = 0; i1 < SNOVA_o * SNOVA_l2; i1++) {
@@ -153,7 +351,7 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 						for (int j1 = 0; j1 < SNOVA_l; j1++)
 							for (int k1 = 0; k1 < SNOVA_l; k1++)
 								P22x[(nk * SNOVA_o + ni) * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-								    T12[(nj * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1] *
+								    T12_GET((nj * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1) *
 								    F11i[ni * SNOVA_l2 + k1 * SNOVA_l + j1];
 		}
 
@@ -162,43 +360,37 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 		 */
 		for (int nj = 0; nj < SNOVA_v; nj++)
 			for (int ni = 0; ni < SNOVA_o; ni++) {
-				uint8_t P12b[SNOVA_l2] = {0};
+				PK_DECL(P12x, P12b);
 #if !PUB_REORDER
 				snova_pk_expander_squeeze(P12b, SNOVA_l2, &p12_instance);
 #else
 				snova_pk_expander_squeeze(P12b, SNOVA_l2, &instance);
 #endif
-				uint16_t P12x[SNOVA_l2];
-				for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-					P12x[i1] = gf16_expand(P12b[i1]);
-				}
+				PK_WIDEN(P12x, P12b)
 				for (int nk = 0; nk < SNOVA_o; nk++)
 					for (int i1 = 0; i1 < SNOVA_l; i1++)
 						for (int j1 = 0; j1 < SNOVA_l; j1++)
 							for (int k1 = 0; k1 < SNOVA_l; k1++)
 								P22x[(nk * SNOVA_o + ni) * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-								    T12[(nj * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1] *
+								    T12_GET((nj * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1) *
 								    P12x[k1 * SNOVA_l + j1];
 			}
 
 		for (int nk = 0; nk < SNOVA_o; nk++)
 			for (int nj = 0; nj < SNOVA_v; nj++) {
-				uint8_t P21b[SNOVA_l2] = {0};
+				PK_DECL(P21x, P21b);
 #if !PUB_REORDER
 				snova_pk_expander_squeeze(P21b, SNOVA_l2, &p21_instance);
 #else
 				snova_pk_expander_squeeze(P21b, SNOVA_l2, &instance);
 #endif
-				uint16_t P21x[SNOVA_l2];
-				for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-					P21x[i1] = gf16_expand(P21b[i1]);
-				}
+				PK_WIDEN(P21x, P21b)
 				for (int ni = 0; ni < SNOVA_o; ni++)
 					for (int i1 = 0; i1 < SNOVA_l; i1++)
 						for (int k1 = 0; k1 < SNOVA_l; k1++)
 							for (int j1 = 0; j1 < SNOVA_l; j1++)
 								P22x[(nk * SNOVA_o + ni) * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-								    P21x[i1 * SNOVA_l + k1] * T12[(nj * SNOVA_o + ni) * SNOVA_l2 + k1 * SNOVA_l + j1];
+								    P21x[i1 * SNOVA_l + k1] * T12_GET((nj * SNOVA_o + ni) * SNOVA_l2 + k1 * SNOVA_l + j1);
 			}
 
 		for (int i1 = 0; i1 < SNOVA_o * SNOVA_o * SNOVA_l2; i1++) {
@@ -233,7 +425,12 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 
 	return 0;
 }
+#endif
 
+#if SIGN_BITSLICE
+#define BS_PK_T uint8_t
+#include "snova_tinymem_bs_sign.inc"
+#else
 /**
  * Optimized version of Sign. Deterministic using the salt provided
  */
@@ -246,14 +443,18 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 	uint8_t *s_pk_hash = sk + SEED_LENGTH_PUBLIC + SEED_LENGTH_PRIVATE;
 #endif
 
-	uint8_t T12[SNOVA_o * SNOVA_v * SNOVA_l2];
+	T12_DECL(T12);
 	expand_T12(T12, s_sk_seed);
 
 	// Calculate message has of size l^2o
 	uint8_t hash_in_GF16[GF16_HASH];
 
 	{
+#if STREAM_PRNG
+		uint8_t *sign_hashb = GF_TAIL(hash_in_GF16, GF16_HASH);
+#else
 		uint8_t sign_hashb[BYTES_HASH];
+#endif
 #if HASH_PK
 		hash_combined(sign_hashb, digest, len_digest, s_pk_hash, salt);
 #else
@@ -281,7 +482,11 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 		uint8_t whipped_sig[SNOVA_l * SNOVA_v * SNOVA_lr] = {0};
 
 		{
+#if STREAM_PRNG
+			uint8_t *vinegar_in_byte = GF_TAIL(signature_in_GF, SNOVA_v * SNOVA_lr);
+#else
 			uint8_t vinegar_in_byte[NUM_GEN_SEC_BYTES];
+#endif
 			shake_t v_instance;
 
 			shake256_init(&v_instance);
@@ -295,7 +500,9 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			convert_bytes_to_GF(signature_in_GF, vinegar_in_byte, SNOVA_v * SNOVA_lr);
 
 			SNOVA_SECURE_CLEARI(v_instance);
+#if !STREAM_PRNG
 			SNOVA_SECURE_CLEAR(vinegar_in_byte);
+#endif
 		}
 
 		{
@@ -361,7 +568,12 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 
 			{
 				uint16_t sum_t0[SNOVA_l * SNOVA_lr];
+#if EXPAND_BITSLICE
+				// F12 row i1, lane (nk, j1)
+				uint32_t F12[SNOVA_l][4];
+#else
 				uint16_t F12[SNOVA_o * SNOVA_l2];
+#endif
 
 				for (int ni = 0; ni < SNOVA_v; ++ni) {
 					// P11
@@ -369,12 +581,9 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 					memset(F12, 0, sizeof(F12));
 
 					for (int nj = 0; nj < SNOVA_v; ++nj) {
-						uint8_t P11b[SNOVA_l2] = {0};
+						PK_DECL(P11x, P11b);
 						snova_pk_expander_squeeze(P11b, SNOVA_l2, &instance);
-						uint16_t P11x[SNOVA_l2];
-						for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-							P11x[i1] = gf16_expand(P11b[i1]);
-						}
+						PK_WIDEN(P11x, P11b)
 
 						for (int k1 = 0; k1 < SNOVA_l; k1++)
 							for (int i1 = 0; i1 < SNOVA_l; i1++)
@@ -383,13 +592,19 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 									    P11x[i1 * SNOVA_l + k1] *
 									    whipped_sig[(k1 * SNOVA_v + nj) * SNOVA_lr + b1];
 
+#if EXPAND_BITSLICE
+						for (int i1 = 0; i1 < SNOVA_l; i1++)
+							for (int k1 = 0; k1 < SNOVA_l; k1++)
+								xs_mul_acc(F12[i1], T12[nj * SNOVA_l + k1], P11b[i1 * SNOVA_l + k1]);
+#else
 						for (int nk = 0; nk < SNOVA_o; nk++)
 							for (int i1 = 0; i1 < SNOVA_l; i1++)
 								for (int j1 = 0; j1 < SNOVA_l; j1++)
 									for (int k1 = 0; k1 < SNOVA_l; k1++)
 										F12[nk * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-										    T12[(nj * SNOVA_o + nk) * SNOVA_l2 + k1 * SNOVA_l + j1] *
+										    T12_GET((nj * SNOVA_o + nk) * SNOVA_l2 + k1 * SNOVA_l + j1) *
 										    P11x[i1 * SNOVA_l + k1];
+#endif
 					}
 
 					for (int i1 = 0; i1 < SNOVA_l * SNOVA_lr; ++i1) {
@@ -409,6 +624,26 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 					 * Start F12
 					 */
 
+#if EXPAND_BITSLICE
+					for (int nk = 0; nk < SNOVA_o; nk++)
+						for (int i1 = 0; i1 < SNOVA_l; i1++)
+							for (int k1 = 0; k1 < SNOVA_l; k1++) {
+								uint16_t f = gf16_expand(xs_get(F12[k1], nk * SNOVA_l + i1));
+								for (int b1 = 0; b1 < SNOVA_lr; ++b1)
+									whipped_F12[(i1 * SNOVA_o + nk) * SNOVA_lr + b1] ^=
+									    f * whipped_sig[(k1 * SNOVA_v + ni) * SNOVA_lr + b1];
+							}
+
+					for (int k1 = 0; k1 < SNOVA_l; k1++)
+						for (int b1 = 0; b1 < SNOVA_l; ++b1)
+							for (int nk = 0; nk < SNOVA_o; nk++)
+								for (int i1 = 0; i1 < SNOVA_l; i1++) {
+									uint16_t t = xs_get(T12[ni * SNOVA_l + i1], nk * SNOVA_l + k1);
+									for (int j1 = 0; j1 < SNOVA_r; j1++)
+										whipped_F21[(b1 * SNOVA_o + nk) * SNOVA_lr + i1 * SNOVA_r + j1] ^=
+										    t * sum_t0[k1 * SNOVA_lr + b1 * SNOVA_r + j1];
+								}
+#else
 					for (int i1 = 0; i1 < SNOVA_o * SNOVA_l2; i1++) {
 						F12[i1] = gf16_expand(gf16_compress(F12[i1]));
 					}
@@ -430,7 +665,8 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 								for (int i1 = 0; i1 < SNOVA_l; i1++)
 									for (int j1 = 0; j1 < SNOVA_r; j1++)
 										whipped_F21[(b1 * SNOVA_o + nk) * SNOVA_lr + i1 * SNOVA_r + j1] ^=
-										    T12[(ni * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1] * sum_t0[k1 * SNOVA_lr + b1 * SNOVA_r + j1];
+										    T12_GET((ni * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1) * sum_t0[k1 * SNOVA_lr + b1 * SNOVA_r + j1];
+#endif
 				}
 
 				SNOVA_SECURE_CLEAR(sum_t0);
@@ -444,16 +680,13 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			// Right
 			for (int nj = 0; nj < SNOVA_v; ++nj)
 				for (int idx = 0; idx < SNOVA_o; idx++) {
-					uint8_t P12b[SNOVA_l2] = {0};
+					PK_DECL(P12x, P12b);
 #if !PUB_REORDER
 					snova_pk_expander_squeeze(P12b, SNOVA_l2, &p12_instance);
 #else
 					snova_pk_expander_squeeze(P12b, SNOVA_l2, &instance);
 #endif
-					uint16_t P12x[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						P12x[i1] = gf16_expand(P12b[i1]);
-					}
+					PK_WIDEN(P12x, P12b)
 
 					for (int i1 = 0; i1 < SNOVA_l; i1++)
 						for (int b1 = 0; b1 < SNOVA_lr; ++b1)
@@ -470,16 +703,13 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 			for (int idx = 0; idx < SNOVA_o; idx++)
 				for (int nj = 0; nj < SNOVA_v; ++nj) {
 					// Right
-					uint8_t P21b[SNOVA_l2] = {0};
+					PK_DECL(P21x, P21b);
 #if !PUB_REORDER
 					snova_pk_expander_squeeze(P21b, SNOVA_l2, &p21_instance);
 #else
 					snova_pk_expander_squeeze(P21b, SNOVA_l2, &instance);
 #endif
-					uint16_t P21x[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						P21x[i1] = gf16_expand(P21b[i1]);
-					}
+					PK_WIDEN(P21x, P21b)
 
 					for (int b1 = 0; b1 < SNOVA_l; ++b1)
 						for (int i1 = 0; i1 < SNOVA_l; i1++)
@@ -809,7 +1039,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 					for (int j1 = 0; j1 < SNOVA_r; j1++) {
 						sum = 0;
 						for (int k1 = 0; k1 < SNOVA_l; k1++) {
-							sum ^= gf16_expand(T12[(index * SNOVA_o + mi) * SNOVA_l2 + i1 * SNOVA_l + k1]) *
+							sum ^= gf16_expand(T12_GET((index * SNOVA_o + mi) * SNOVA_l2 + i1 * SNOVA_l + k1)) *
 							       solution[mi * SNOVA_lr + k1 * SNOVA_r + j1];
 						}
 						signature_in_GF[index * SNOVA_lr + i1 * SNOVA_r + j1] ^= gf16_compress(sum);
@@ -833,6 +1063,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 
 	return 0;
 }
+#endif
 
 /**
  * Optimized version of verify.
@@ -954,12 +1185,9 @@ int SNOVA_NAMESPACE(verify)(const expanded_PK *pkx, const uint8_t *sig, const ui
 				// Right
 				uint16_t sum_t0[SNOVA_l * SNOVA_lr] = {0};
 				for (int nj = 0; nj < SNOVA_v; ++nj) {
-					uint8_t P11b[SNOVA_l2] = {0};
+					PK_DECL(P11x, P11b);
 					snova_pk_expander_squeeze(P11b, SNOVA_l2, &instance);
-					uint16_t P11x[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						P11x[i1] = gf16_expand(P11b[i1]);
-					}
+					PK_WIDEN(P11x, P11b)
 
 					for (int k1 = 0; k1 < SNOVA_l; k1++)
 						for (int i1 = 0; i1 < SNOVA_l; i1++)
@@ -988,16 +1216,13 @@ int SNOVA_NAMESPACE(verify)(const expanded_PK *pkx, const uint8_t *sig, const ui
 				// Right
 				uint16_t sum_t0[SNOVA_l * SNOVA_lr] = {0};
 				for (int nj = 0; nj < SNOVA_o; ++nj) {
-					uint8_t P12b[SNOVA_l2] = {0};
+					PK_DECL(P12x, P12b);
 #if !PUB_REORDER
 					snova_pk_expander_squeeze(P12b, SNOVA_l2, &p12_instance);
 #else
 					snova_pk_expander_squeeze(P12b, SNOVA_l2, &instance);
 #endif
-					uint16_t P12x[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						P12x[i1] = gf16_expand(P12b[i1]);
-					}
+					PK_WIDEN(P12x, P12b)
 					for (int k1 = 0; k1 < SNOVA_l; k1++)
 						for (int i1 = 0; i1 < SNOVA_l; i1++)
 							for (int b1 = 0; b1 < SNOVA_lr; ++b1)
@@ -1025,16 +1250,13 @@ int SNOVA_NAMESPACE(verify)(const expanded_PK *pkx, const uint8_t *sig, const ui
 				// Right
 				uint16_t sum_t0[SNOVA_l * SNOVA_lr] = {0};
 				for (int nj = 0; nj < SNOVA_v; ++nj) {
-					uint8_t P21b[SNOVA_l2] = {0};
+					PK_DECL(P21x, P21b);
 #if !PUB_REORDER
 					snova_pk_expander_squeeze(P21b, SNOVA_l2, &p21_instance);
 #else
 					snova_pk_expander_squeeze(P21b, SNOVA_l2, &instance);
 #endif
-					uint16_t P21x[SNOVA_l2];
-					for (int i1 = 0; i1 < SNOVA_l2; i1++) {
-						P21x[i1] = gf16_expand(P21b[i1]);
-					}
+					PK_WIDEN(P21x, P21b)
 
 					for (int k1 = 0; k1 < SNOVA_l; k1++)
 						for (int i1 = 0; i1 < SNOVA_l; i1++)
@@ -1134,7 +1356,11 @@ int SNOVA_NAMESPACE(verify)(const expanded_PK *pkx, const uint8_t *sig, const ui
 	 */
 	uint8_t signed_gf[GF16_HASH] = {0};
 	const uint8_t *salt = sig + BYTES_SIGNATURE - BYTES_SALT;
+#if STREAM_PRNG
+	uint8_t *signed_bytes = GF_TAIL(signed_gf, GF16_HASH);
+#else
 	uint8_t signed_bytes[BYTES_HASH];
+#endif
 #if HASH_PK
 	uint8_t pk_hash[BYTES_PK_HASH];
 	shake256(pk_hash, BYTES_PK_HASH, pk, BYTES_PK);

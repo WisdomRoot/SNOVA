@@ -15,17 +15,21 @@
 # For every kernel and all nine sets, it builds stock and the variant in
 # copies of src/ and runs PQCgenKAT_sign in each, then checks
 #
-#   1. the variant's .req and .rsp are byte-identical to stock's, and
+#   1. the variant's .req and .rsp are byte-identical to stock's,
 #   2. the variant's .rsp hashes to the digest dist/KATs records for the set,
-#      the way dist/digests.sh computes it.
+#      the way dist/digests.sh computes it, and
+#   3. at least one of the variant's objects differs from stock's. A flag the
+#      kernel does not know, misspelt or not yet written, builds stock again
+#      and would pass 1 and 2 without testing anything.
 #
 # AESCTR selects upstream's other public-key expansion, with KATs of its own.
 # When DEFS holds -DAESCTR, stock is built with it too and the set is named
-# <set>_AES, as dist/makesnova.py names it, so both checks are against the
+# <set>_AES, as dist/makesnova.py names it, so all checks are against the
 # AES KATs.
 #
 # With no -D the variant is stock itself, which checks stock against
-# dist/KATs. Exits 1 if any check fails.
+# dist/KATs. Check 3 is skipped then, and when DEFS is -DAESCTR alone, since
+# the variant is stock in both cases. Exits 1 if any check fails.
 set -eu
 
 usage() {
@@ -51,6 +55,22 @@ aes=
 case " $defs " in
 *" -DAESCTR "* | *" -DAESCTR="*) aes=_AES ;;
 esac
+
+# Check 3 runs when DEFS holds anything besides -DAESCTR.
+compare=
+for d in $defs; do
+  case $d in
+  -DAESCTR | -DAESCTR=*) ;;
+  *) compare=1 ;;
+  esac
+done
+
+# Succeed when every object stock built is byte-identical in the variant.
+same_objects() {
+  for o in "$1"/build/*.o; do
+    cmp -s "$o" "$2/build/${o##*/}" || return 1
+  done
+}
 
 # The nine recommended sets, as dist/makesnova.py lists them: name v o q l r m1.
 SETS='SNOVA_I_K 29 3 16 4 8 5
@@ -114,6 +134,10 @@ for kernel in $kernels; do
         fail=1
       fi
     done
+    if [ -n "$compare" ] && same_objects "$stock" "$variant"; then
+      echo "FAIL $kernel $set_name: DEFS change none of its objects" >&2
+      fail=1
+    fi
     want=$(awk -v f="$set_name.rsp" '$1 == f { print $2 }' "$root/dist/KATs")
     got=$(openssl dgst -shake256 -xoflen=24 "$variant/PQCsignKAT_$set_name.rsp" | awk '{ print $NF }')
     if [ "$got" != "$want" ]; then

@@ -1779,6 +1779,38 @@ void AES256_ECB(const unsigned char *key, const uint8_t *input, unsigned char *o
 
 #else
 
+// AES_STACK_SCHEDULE keeps the AES-128 key schedule on the stack instead of the
+// heap. riscv32-virt has no heap (__wrap__sbrk in bench/hal-riscv-common.c
+// returns NULL), and a stack schedule is also counted in the stack measurement.
+#ifndef AES_STACK_SCHEDULE
+#define AES_STACK_SCHEDULE 1
+#endif
+
+#if AES_STACK_SCHEDULE
+static void oqs_aes128_fill_schedule_c(const uint8_t *key, aes128ctx *ctx) {
+	uint64_t skey[22];
+	br_aes_ct64_keysched(skey, key, 16);
+	br_aes_ct64_skey_expand(ctx->sk_exp, skey, 10);
+	memset(skey, 0, sizeof(skey));
+}
+
+int AES128_CTR(unsigned char *output, size_t outputByteLen, const unsigned char *input, size_t inputByteLen) {
+	assert(inputByteLen > 0);
+	const uint8_t iv[16] = {0};
+	aes128ctx ctx;
+	oqs_aes128_fill_schedule_c(input, &ctx);
+	oqs_aes128_ctr_enc_sch_c(iv, 16, &ctx, output, outputByteLen);
+	memset(&ctx, 0, sizeof(ctx));
+	return (int)outputByteLen;
+}
+
+void AES128_ECB(const unsigned char *key, const uint8_t *input, unsigned char *output, size_t num) {
+	aes128ctx ctx;
+	oqs_aes128_fill_schedule_c(key, &ctx);
+	oqs_aes128_ecb_enc_sch_c(input, num, &ctx, output);
+	memset(&ctx, 0, sizeof(ctx));
+}
+#else
 int AES128_CTR(unsigned char *output, size_t outputByteLen, const unsigned char *input, size_t inputByteLen) {
 	assert(inputByteLen > 0);
 	const uint8_t iv[16] = {0};
@@ -1795,6 +1827,7 @@ void AES128_ECB(const unsigned char *key, const uint8_t *input, unsigned char *o
 	oqs_aes128_ecb_enc_sch_c(input, num, schedule, output);
 	oqs_aes128_free_schedule_c(schedule);
 }
+#endif
 
 void AES256_ECB(const unsigned char *key, const uint8_t *input, unsigned char *output) {
 	void *schedule = NULL;
