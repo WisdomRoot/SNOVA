@@ -711,7 +711,10 @@ static void gen_fixed_ABQ(const char *abq_seed) {
 }
 #endif
 
-#if EXPAND_BITSLICE
+#if EXPAND_BITSLICE && SIGN_BITSLICE
+#error "one flag at a time"
+#endif
+#if EXPAND_BITSLICE || SIGN_BITSLICE
 #include "snova_ref_bs.inc"
 #endif
 
@@ -827,6 +830,7 @@ int SNOVA_NAMESPACE(sk_expand)(expanded_SK* skx, const uint8_t *sk) {
 	return 0;
 }
 
+#if !SIGN_BITSLICE
 /**
  * Reference version of Sign. Deterministic using the salt provided
  */
@@ -1223,6 +1227,8 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK* skx, uint8_t *sig, const uint8_t *d
 
 	return 0;
 }
+
+#endif
 
 /**
  * PK expansion.

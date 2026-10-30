@@ -217,6 +217,13 @@ typedef uint16_t skx_gf_t;
 #define EXPAND_BITSLICE 0
 #endif
 
+// SIGN_BITSLICE runs sign's whip, sum_t0, sum_t1, whipped_F12, whipped_F21 and
+// Gauss elimination on bit-sliced lanes. Scalars enter only through masks, and
+// each kernel keeps its stock pivot order.
+#ifndef SIGN_BITSLICE
+#define SIGN_BITSLICE 0
+#endif
+
 typedef struct {
 #if SNOVA_OPT == 5
 	uint8_t _data[BYTES_SK];

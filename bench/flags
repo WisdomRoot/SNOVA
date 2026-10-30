@@ -11,3 +11,4 @@ pk-expand-shake|-DAESCTR
 narrow-gf16|-DNARROW_GF16=1
 stream-prng|-DSTREAM_PRNG=1
 expand-bitslice|-DEXPAND_BITSLICE=1
+sign-bitslice|-DSIGN_BITSLICE=1

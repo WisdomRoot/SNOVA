@@ -31,9 +31,11 @@
  *
  * EXPAND_BITSLICE (snova.h) holds T12, F12 and P22 sliced over o * l lanes.
  *
+ * SIGN_BITSLICE (snova.h) replaces sign with tinymem's sliced sign, on memopt's buffers.
+ *
  * These and STREAM_PRNG are only tested one at a time.
  */
-#if NARROW_GF16 + STREAM_PRNG + EXPAND_BITSLICE > 1
+#if NARROW_GF16 + STREAM_PRNG + SIGN_BITSLICE + EXPAND_BITSLICE > 1
 #error "one flag at a time"
 #endif
 #if EXPAND_BITSLICE && PUB_REORDER
@@ -425,6 +427,10 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 }
 #endif
 
+#if SIGN_BITSLICE
+#define BS_PK_T uint8_t
+#include "snova_tinymem_bs_sign.inc"
+#else
 /**
  * Optimized version of Sign. Deterministic using the salt provided
  */
@@ -1057,6 +1063,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 
 	return 0;
 }
+#endif
 
 /**
  * Optimized version of verify.
