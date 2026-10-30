@@ -7,3 +7,4 @@
 # The first line, with no name and no DEFS, is stock. Lines starting with #
 # are comments.
 |
+pk-expand-shake|-DAESCTR
