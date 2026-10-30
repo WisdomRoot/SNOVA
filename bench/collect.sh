@@ -23,7 +23,7 @@
 # Environment, for a partial run:
 #   KERNELS  default "ref mem opt tinymem"
 #   SETS     default all nine
-#   FLAGS    default the table below
+#   FLAGS    default the lines of ./flags
 #   JOBS     builds measured at once, default 4
 #   REV      the revision column, as ./measure -r
 set -eu
@@ -40,9 +40,8 @@ KERNELS=${KERNELS:-ref mem opt tinymem}
 SETS=${SETS:-l1-k l1-b l1-s l3-k l3-b l3-s l5-k l5-b l5-s}
 JOBS=${JOBS:-4}
 
-# The flag sets, one per line as NAME|DEFS. The first, with no name and no
-# DEFS, is stock.
-FLAGS=${FLAGS:-'|'}
+# The flag sets, one per line as NAME|DEFS, as ./flags describes them.
+FLAGS=${FLAGS:-$(grep -v '^#' flags)}
 
 [ -n "${REV:-}" ] || REV=$(./revision)
 
