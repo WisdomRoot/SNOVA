@@ -8,3 +8,4 @@
 # are comments.
 |
 pk-expand-shake|-DAESCTR
+narrow-gf16|-DNARROW_GF16=1

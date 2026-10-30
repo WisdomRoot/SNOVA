@@ -69,7 +69,7 @@ static inline void gf_mat_mul_add(gf_t* a, const gf_t* b, const gf_t* c) {
 		}
 }
 
-static inline void gf_mat_mul_add16(gf_t* a, const uint16_t *b, const gf_t* c) {
+static inline void gf_mat_mul_add16(gf_t* a, const skx_gf_t *b, const gf_t* c) {
 	for (int i1 = 0; i1 < SNOVA_l; i1++)
 		for (int j1 = 0; j1 < SNOVA_r; j1++) {
 			gf_t sum = 0;

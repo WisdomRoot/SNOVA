@@ -26,6 +26,20 @@
 #define SNOVA_olr (SNOVA_o * SNOVA_lr + 1)
 
 /**
+ * NARROW_GF16 (snova.h) stores T12 two elements per byte. expand_T12 writes it
+ * in index order, which T12_PUT relies on: an even index clears the byte.
+ */
+#if NARROW_GF16
+#define T12_BYTES ((SNOVA_o * SNOVA_v * SNOVA_l2 + 1) / 2)
+#define T12_GET(i) ((((i) & 1) ? T12[(i) / 2] >> 4 : T12[(i) / 2]) & 0xf)
+#define T12_PUT(i, val) do { if ((i) & 1) T12[(i) / 2] |= (uint8_t)((val) << 4); else T12[(i) / 2] = (uint8_t)(val); } while (0)
+#else
+#define T12_BYTES (SNOVA_o * SNOVA_v * SNOVA_l2)
+#define T12_GET(i) (T12[i])
+#define T12_PUT(i, val) (T12[i] = (val))
+#endif
+
+/**
  * Utilities
  */
 #define gf16_expand(a) (((a) | ((a) << 3) | ((a) << 6) | ((a) << 9)) & 0x1111)
@@ -84,7 +98,7 @@ static inline void expand_T12(uint8_t *T12, const uint8_t *seed) {
 			for (int k1 = 0; k1 < SNOVA_l; k1++) {
 				sum ^= T12coef[i1 * SNOVA_l + k1] * gf_Sx[k1 * SNOVA_l2 + j1];
 			}
-			T12[i1 * SNOVA_l2 + j1] = gf16_compress(sum);
+			T12_PUT(i1 * SNOVA_l2 + j1, gf16_compress(sum));
 		}
 	}
 
@@ -100,7 +114,7 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 	/**
 	 * Gen T12 matrix
 	 */
-	uint8_t T12[SNOVA_o * SNOVA_v * SNOVA_l2];
+	uint8_t T12[T12_BYTES];
 	expand_T12(T12, seed + SEED_LENGTH_PUBLIC);
 
 	/**
@@ -140,7 +154,7 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 						for (int j1 = 0; j1 < SNOVA_l; j1++)
 							for (int k1 = 0; k1 < SNOVA_l; k1++)
 								F11i[ni * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-								    T12[(nk * SNOVA_o + ni) * SNOVA_l2 + k1 * SNOVA_l + j1] * P11x[i1 * SNOVA_l + k1];
+								    T12_GET((nk * SNOVA_o + ni) * SNOVA_l2 + k1 * SNOVA_l + j1) * P11x[i1 * SNOVA_l + k1];
 			}
 
 			for (int i1 = 0; i1 < SNOVA_o * SNOVA_l2; i1++) {
@@ -153,7 +167,7 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 						for (int j1 = 0; j1 < SNOVA_l; j1++)
 							for (int k1 = 0; k1 < SNOVA_l; k1++)
 								P22x[(nk * SNOVA_o + ni) * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-								    T12[(nj * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1] *
+								    T12_GET((nj * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1) *
 								    F11i[ni * SNOVA_l2 + k1 * SNOVA_l + j1];
 		}
 
@@ -177,7 +191,7 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 						for (int j1 = 0; j1 < SNOVA_l; j1++)
 							for (int k1 = 0; k1 < SNOVA_l; k1++)
 								P22x[(nk * SNOVA_o + ni) * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-								    T12[(nj * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1] *
+								    T12_GET((nj * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1) *
 								    P12x[k1 * SNOVA_l + j1];
 			}
 
@@ -198,7 +212,7 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 						for (int k1 = 0; k1 < SNOVA_l; k1++)
 							for (int j1 = 0; j1 < SNOVA_l; j1++)
 								P22x[(nk * SNOVA_o + ni) * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-								    P21x[i1 * SNOVA_l + k1] * T12[(nj * SNOVA_o + ni) * SNOVA_l2 + k1 * SNOVA_l + j1];
+								    P21x[i1 * SNOVA_l + k1] * T12_GET((nj * SNOVA_o + ni) * SNOVA_l2 + k1 * SNOVA_l + j1);
 			}
 
 		for (int i1 = 0; i1 < SNOVA_o * SNOVA_o * SNOVA_l2; i1++) {
@@ -246,7 +260,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 	uint8_t *s_pk_hash = sk + SEED_LENGTH_PUBLIC + SEED_LENGTH_PRIVATE;
 #endif
 
-	uint8_t T12[SNOVA_o * SNOVA_v * SNOVA_l2];
+	uint8_t T12[T12_BYTES];
 	expand_T12(T12, s_sk_seed);
 
 	// Calculate message has of size l^2o
@@ -388,7 +402,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 								for (int j1 = 0; j1 < SNOVA_l; j1++)
 									for (int k1 = 0; k1 < SNOVA_l; k1++)
 										F12[nk * SNOVA_l2 + i1 * SNOVA_l + j1] ^=
-										    T12[(nj * SNOVA_o + nk) * SNOVA_l2 + k1 * SNOVA_l + j1] *
+										    T12_GET((nj * SNOVA_o + nk) * SNOVA_l2 + k1 * SNOVA_l + j1) *
 										    P11x[i1 * SNOVA_l + k1];
 					}
 
@@ -430,7 +444,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 								for (int i1 = 0; i1 < SNOVA_l; i1++)
 									for (int j1 = 0; j1 < SNOVA_r; j1++)
 										whipped_F21[(b1 * SNOVA_o + nk) * SNOVA_lr + i1 * SNOVA_r + j1] ^=
-										    T12[(ni * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1] * sum_t0[k1 * SNOVA_lr + b1 * SNOVA_r + j1];
+										    T12_GET((ni * SNOVA_o + nk) * SNOVA_l2 + i1 * SNOVA_l + k1) * sum_t0[k1 * SNOVA_lr + b1 * SNOVA_r + j1];
 				}
 
 				SNOVA_SECURE_CLEAR(sum_t0);
@@ -809,7 +823,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK *skx_arg, uint8_t *sig, const uint8_
 					for (int j1 = 0; j1 < SNOVA_r; j1++) {
 						sum = 0;
 						for (int k1 = 0; k1 < SNOVA_l; k1++) {
-							sum ^= gf16_expand(T12[(index * SNOVA_o + mi) * SNOVA_l2 + i1 * SNOVA_l + k1]) *
+							sum ^= gf16_expand(T12_GET((index * SNOVA_o + mi) * SNOVA_l2 + i1 * SNOVA_l + k1)) *
 							       solution[mi * SNOVA_lr + k1 * SNOVA_r + j1];
 						}
 						signature_in_GF[index * SNOVA_lr + i1 * SNOVA_r + j1] ^= gf16_compress(sum);
