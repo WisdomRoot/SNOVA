@@ -565,6 +565,9 @@ static inline void gen_ABQ(uint8_t *A, uint8_t *Am, uint8_t *Bm, uint8_t *Q1m, u
 }
 #endif
 
+#if EXPAND_BITSLICE
+#include "snova_opt_bs_expand.inc"
+#else
 /**
  * Optimized version of genkey.
  */
@@ -837,6 +840,8 @@ int SNOVA_NAMESPACE(sk_expand)(expanded_SK *skx, const uint8_t *sk) {
 
 	return 0;
 }
+
+#endif
 
 /**
  * Optimized version of Sign. Deterministic using the salt provided

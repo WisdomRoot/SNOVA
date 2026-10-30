@@ -711,6 +711,11 @@ static void gen_fixed_ABQ(const char *abq_seed) {
 }
 #endif
 
+#if EXPAND_BITSLICE
+#include "snova_ref_bs.inc"
+#endif
+
+#if !EXPAND_BITSLICE
 /**
  * Reference version of genkey.
  */
@@ -810,6 +815,8 @@ int SNOVA_NAMESPACE(genkeys)(uint8_t *pk, uint8_t *sk, const uint8_t *seed) {
 	return 0;
 }
 
+#endif
+
 /**
  * Dummy sk_expand.
  */
@@ -845,6 +852,12 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK* skx, uint8_t *sig, const uint8_t *d
 	gf_t* P12 = P_matrix + SNOVA_m1 * SNOVA_v * SNOVA_v * SNOVA_l2;
 	gf_t* P21 = P_matrix + SNOVA_m1 * SNOVA_v * SNOVA_n * SNOVA_l2;
 
+#if EXPAND_BITSLICE
+	gf_t F21[SNOVA_m1 * SNOVA_o * SNOVA_v * SNOVA_l2];
+	gf_t F12[SNOVA_m1 * SNOVA_v * SNOVA_o * SNOVA_l2];
+	ref_bs_F12F21(F12, F21, T12, P11, P12, P21);
+
+#else
 	gf_t F21[SNOVA_m1 * SNOVA_o * SNOVA_v * SNOVA_l2] = {0};
 
 	for (int i1 = 0; i1 < SNOVA_m1; i1++) {
@@ -881,6 +894,7 @@ int SNOVA_NAMESPACE(sign)(const expanded_SK* skx, uint8_t *sig, const uint8_t *d
 		gf_set_add(&F21[i1], P21[i1]);
 	}
 
+#endif
 	// Generate ABQ
 	gf_t Am[SNOVA_o * SNOVA_alpha * SNOVA_r2];
 	gf_t Bm[SNOVA_o * SNOVA_alpha * SNOVA_lr];

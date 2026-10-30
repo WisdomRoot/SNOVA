@@ -210,6 +210,13 @@ typedef uint16_t skx_gf_t;
 #define STREAM_PRNG 0
 #endif
 
+// EXPAND_BITSLICE computes the public map's products on bit-sliced T12: F11, P12
+// and P22 in keypair, F12 and F21 in sign. A GF(16) multiply is four masked XORs
+// over planes, with field polynomial t^4 + t + 1.
+#ifndef EXPAND_BITSLICE
+#define EXPAND_BITSLICE 0
+#endif
+
 typedef struct {
 #if SNOVA_OPT == 5
 	uint8_t _data[BYTES_SK];
